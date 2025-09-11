@@ -1458,7 +1458,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                                     await supabase
                                                       .from("bookings")
                                                       .update({
-                                                        status: "complete",
+                                                        status: "completed",
                                                       })
                                                       .eq("id", booking.id);
 
@@ -1468,7 +1468,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                                   await supabase
                                                     .from("vehicles")
                                                     .update({
-                                                      status: "Available",
+                                                      status: "available",
                                                     })
                                                     .eq(
                                                       "id",
