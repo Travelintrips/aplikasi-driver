@@ -117,6 +117,18 @@ const VehicleBooking = ({
   const [driverOption, setDriverOption] = useState("self");
   const [timeValidationError, setTimeValidationError] = useState("");
   const [isTimeValid, setIsTimeValid] = useState(true);
+  const [vehicleType, setvehicleType] = useState(null);
+  const [vehicleName, setvehicleName] = useState(null);
+  const [make, setmake] = useState(null);
+  const [model, setmodel] = useState(null);
+
+  const handleVehicleSelect = (vehicle) => {
+    setSelectedVehicle(vehicle);
+    setvehicleType(vehicle.type);
+    setvehicleName(vehicle.name);
+    setmake(vehicle.make);
+    setmodel(vehicle.model);
+  };
 
   const calculateRentalDuration = () => {
     if (!pickupDate || !returnDate) return 1;
@@ -445,11 +457,18 @@ const VehicleBooking = ({
         start_time: startTime,
         end_time: returnTime,
         rental_days: rentalDuration,
-        total_amount: totalPrice + gpsFee, // price*days + GPS_fee*days
+        total_amount: totalPrice + gpsFee,
         status: "pending",
         payment_method: paymentMethod,
         driver_fee: driverFee,
+        vehicle_type: selectedVehicle?.type || "",
+        vehicle_name: selectedVehicle?.name || "",
+        make: selectedVehicle?.make || "",
+        model: selectedVehicle?.model || "",
+        license_plate: selectedVehicle?.license_plate || "",
+        code_booking: bookingCode,
       };
+
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
       console.log("Selected vehicle:", selectedVehicle);
