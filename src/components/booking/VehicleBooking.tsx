@@ -423,7 +423,7 @@ const VehicleBooking = ({
       if (existingDriverBookings && existingDriverBookings.length > 0) {
         alert(
           language === "id"
-            ? "Driver ini masih punya booking aktif. Selesaikan dulu sebelum membuat booking baru."
+            ? "Kamu masih punya pesanan aktif. Selesaikan dulu sebelum membuat pesanan baru."
             : "This driver still has an active booking. Complete it before creating a new one.",
         );
         return;
