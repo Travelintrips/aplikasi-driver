@@ -1425,7 +1425,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                             </DialogContent>
                                           </Dialog>
                                         )}
-                                        {booking.status !== "cancelled" && (
+                                        {(booking.status === "pending" ||
+                                          booking.status === "cancelled") && (
                                           <>
                                             {canBookingBePaid(booking) && (
                                               <Button
@@ -1441,6 +1442,55 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                             )}
                                             <Button size="sm" variant="outline">
                                               Hubungi Dukungan
+                                            </Button>
+                                          </>
+                                        )}
+
+                                        {booking.status === "confirmed" && (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              className="bg-green-600 hover:bg-green-700 text-white"
+                                              onClick={async () => {
+                                                try {
+                                                  // Update status booking menjadi complete
+                                                  const { error } =
+                                                    await supabase
+                                                      .from("bookings")
+                                                      .update({
+                                                        status: "complete",
+                                                      })
+                                                      .eq("id", booking.id);
+
+                                                  if (error) throw error;
+
+                                                  // Kalau kendaraan juga harus dilepas kembali:
+                                                  await supabase
+                                                    .from("vehicles")
+                                                    .update({
+                                                      status: "Available",
+                                                    })
+                                                    .eq(
+                                                      "id",
+                                                      booking.vehicle_id,
+                                                    );
+
+                                                  alert(
+                                                    "Booking berhasil diselesaikan (status complete).",
+                                                  );
+                                                  // Panggil ulang fetch bookings di sini supaya UI ter-refresh
+                                                } catch (err) {
+                                                  console.error(
+                                                    "Error updating booking:",
+                                                    err,
+                                                  );
+                                                  alert(
+                                                    "Gagal menyelesaikan booking.",
+                                                  );
+                                                }
+                                              }}
+                                            >
+                                              Selesai Sewa
                                             </Button>
                                           </>
                                         )}
@@ -1696,7 +1746,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           className="flex-1"
                                           variant="outline"
                                         >
-                                          Hubungi Dukungan
+                                          Hubungi Dukungan2
                                         </Button>
                                       </>
                                     )}

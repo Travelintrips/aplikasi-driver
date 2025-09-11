@@ -403,6 +403,32 @@ const VehicleBooking = ({
         return;
       }
 
+      const { data: existingDriverBookings, error: driverBookingError } =
+        await supabase
+          .from("bookings")
+          .select("id, status")
+          .eq("driver_id", driverId)
+          .in("status", ["pending", "confirmed", "onride"]);
+
+      if (driverBookingError) {
+        console.error("Error checking driver bookings:", driverBookingError);
+        alert(
+          language === "id"
+            ? "Terjadi kesalahan saat memeriksa booking driver."
+            : "Error while checking driver bookings.",
+        );
+        return;
+      }
+
+      if (existingDriverBookings && existingDriverBookings.length > 0) {
+        alert(
+          language === "id"
+            ? "Driver ini masih punya booking aktif. Selesaikan dulu sebelum membuat booking baru."
+            : "This driver still has an active booking. Complete it before creating a new one.",
+        );
+        return;
+      }
+
       // Get driver name for the booking
       let driverName = "Unknown";
       try {
