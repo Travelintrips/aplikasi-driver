@@ -505,7 +505,6 @@ const VehicleBooking = ({
         "end_date",
         "user_id",
         "driver_id",
-        "name",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
