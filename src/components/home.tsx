@@ -566,23 +566,18 @@ const Home = () => {
       }
 
       // Generate order ID
-      const orderId = `TOPDRIVER-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      // Construct API URL
-      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || "Driver")}&phone=${encodeURIComponent(user?.phone || "08123456789")}&order=${orderId}`;
-
+      const orderId = `TOP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      
+      // Construct API URL using the PHP endpoint
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}`;
+      
       // Open payment URL in new window
-      const paymentWindow = window.open(
-        apiUrl,
-        "_blank",
-        "width=600,height=700,scrollbars=yes,resizable=yes",
-      );
-
+      const paymentWindow = window.open(apiUrl, '_blank', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
       if (!paymentWindow) {
         toast({
           title: "Error",
-          description:
-            "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
+          description: "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
           duration: 5000,
           className: "bg-red-50 border-red-200",
         });
@@ -591,14 +586,14 @@ const Home = () => {
 
       toast({
         title: "Pembayaran Dibuka",
-        description:
-          "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
+        description: "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
         duration: 5000,
         className: "bg-blue-50 border-blue-200",
       });
 
       // Reset form
       setQuickTopupAmount("");
+      
     } catch (error) {
       console.error("Error processing quick topup:", error);
       toast({
@@ -1913,7 +1908,7 @@ const Home = () => {
                     }}
                   >
                     <Clock className="mr-2 h-4 w-4" />
-                    Riwayat Pemesanan
+                    {getTranslation("bookingHistory", language)}
                   </Button>
                   <Button
                     variant={activeTab === "payments" ? "default" : "ghost"}

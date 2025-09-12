@@ -156,16 +156,14 @@ const VehicleBooking = ({
     ? selectedVehicle.price * rentalDuration
     : 0;
   const driverFee = 150000;
-  const gpsFee = 5000 * rentalDuration; // GPS fee of Rp 5,000 × rental days
 
-  // Total calculation: price*days + GPS_FEE*days
+  // Total calculation: only price*days (no GPS fee)
   const calculateTotal = () => {
     if (!selectedVehicle) return 0;
     const vehicleCost = selectedVehicle.price * rentalDuration;
-    const gpsCost = 5000 * rentalDuration;
     const driverCost =
       driverOption === "with-driver" ? driverFee * rentalDuration : 0;
-    return vehicleCost + gpsCost + driverCost;
+    return vehicleCost + driverCost;
   };
 
   // Check if user can make booking (balance can go negative up to -500,000)
@@ -483,7 +481,7 @@ const VehicleBooking = ({
         start_time: startTime,
         end_time: returnTime,
         rental_days: rentalDuration,
-        total_amount: totalPrice + gpsFee,
+        total_amount: totalPrice,
         status: "pending",
         payment_method: paymentMethod,
         driver_fee: driverFee,
@@ -1083,12 +1081,6 @@ const VehicleBooking = ({
                     </span>
                   </div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm font-normal">GPS</span>
-                    <span className="text-sm font-normal">
-                      {formatCurrency(gpsFee, language)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between mb-2">
                     <span className="text-sm font-normal">
                       {language === "id" ? "Saldo Anda" : "Your balance"}
                     </span>
@@ -1136,7 +1128,6 @@ const VehicleBooking = ({
                     <span className="text-sm font-bold">
                       {formatCurrency(
                         totalPrice +
-                          gpsFee +
                           (driverOption === "with-driver"
                             ? driverFee * rentalDuration
                             : 0),
