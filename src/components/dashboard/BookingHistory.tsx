@@ -75,6 +75,8 @@ interface Booking {
   vehicle_name: string;
   vehicle_type: string;
   booking_date: Date;
+  end_date?: Date; // Add end_date field
+  end_time?: string; // Add end_time field
   start_time: string;
   duration: number;
   status: "pending" | "approved" | "rejected" | "cancelled";
@@ -209,10 +211,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             bookings_status,
             status,
             booking_date,
+            end_date,
+            start_time,
+            end_time,
             total_amount,
             vehicle_name,
             vehicle_type,
-            start_time,
             duration,
             payment_method,
             user_id,
@@ -248,10 +252,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               bookings_status,
               status,
               booking_date,
+              end_date,
+              start_time,
+              end_time,
               total_amount,
               vehicle_name,
               vehicle_type,
-              start_time,
               duration,
               payment_method,
               user_id,
@@ -317,10 +323,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     bookings_status,
                     status,
                     booking_date,
+                    end_date,
+                    start_time,
+                    end_time,
                     total_amount,
                     vehicle_name,
                     vehicle_type,
-                    start_time,
                     duration,
                     payment_method,
                     user_id,
@@ -352,19 +360,25 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           );
           // Transform the data to match our Booking interface
           const formattedBookings = bookingsData.map((booking) => {
-            // Parse booking_date properly to ensure it's in local timezone
+            // Parse booking_date properly using dayjs with WIB timezone
             let bookingDate;
+            let endDate;
             try {
               if (booking.booking_date) {
-                // If booking_date is already a date string, parse it in local timezone
-                bookingDate = dayjs(booking.booking_date)
-                  .tz("Asia/Jakarta")
-                  .toDate();
+                // Parse the date string as date-only in WIB timezone to avoid shifts
+                const dateStr = booking.booking_date.toString().split("T")[0]; // Get YYYY-MM-DD part only
+                bookingDate = dayjs.tz(dateStr, "Asia/Jakarta").toDate();
               } else {
                 bookingDate = new Date();
               }
+
+              // Parse end_date if available
+              if (booking.end_date) {
+                const endDateStr = booking.end_date.toString().split("T")[0]; // Get YYYY-MM-DD part only
+                endDate = dayjs.tz(endDateStr, "Asia/Jakarta").toDate();
+              }
             } catch (error) {
-              console.error("Error parsing booking_date:", error);
+              console.error("Error parsing booking dates:", error);
               bookingDate = new Date();
             }
 
@@ -376,6 +390,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               vehicle_name: booking.model || "Unknown Vehicle",
               vehicle_type: booking.vehicle_type || "Unknown Type",
               booking_date: bookingDate,
+              end_date: endDate, // Add end_date to the formatted booking
+              end_time: booking.end_time || "08:00", // Add end_time to the formatted booking
               start_time: booking.start_time || "00:00",
               duration: booking.duration || 0,
               status: booking.bookings_status || booking.status || "pending",
@@ -599,9 +615,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
 
         const bookingIds = userBookings.map((b) => b.id);
 
-        let query = supabase.from("remaining_payments").select(`
-            *
-          `);
+        let query = supabase.from("remaining_payments").select("*");
 
         // Filter by booking IDs that belong to the user
         if (bookingIds.length > 0) {
@@ -724,6 +738,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   // Format date safely using dayjs for consistency with WIB timezone
   const formatDate = (date: any, formatStr: string): string => {
     try {
+      // Always parse and format in Asia/Jakarta timezone
       const parsed = dayjs(date).tz("Asia/Jakarta");
 
       if (!parsed.isValid()) return "Invalid date";
@@ -741,44 +756,63 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     }
   };
 
-  const calculateEndDate = (booking: Booking): string => {
-    try {
-      if (!isValidDate(booking.booking_date)) return "Invalid date";
-      const dateStr = dayjs(booking.booking_date).format("YYYY-MM-DD");
-      const [hours, minutes] = booking.start_time.split(":").map(Number);
-      const startDateTime = new Date(`${dateStr}T${booking.start_time}`);
-      startDateTime.setHours(hours);
-      startDateTime.setMinutes(minutes);
-      const endDate = new Date(
-        startDateTime.getTime() + booking.duration * 60 * 60 * 1000,
-      );
-
-      return endDate.toLocaleDateString("id-ID", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    } catch (error) {
-      console.error("Error calculating end date:", error);
-      return "Invalid date";
-    }
-  };
-
-  // Calculate end time safely
+  // Calculate end time safely using dayjs with WIB timezone
   const calculateEndTime = (booking: Booking): string => {
     try {
       if (!isValidDate(booking.booking_date)) return "Invalid time";
-      const startDate = dayjs(
-        `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
-      );
 
-      // Anggap durasi dalam satuan hari
+      // Use booking_date as the base date and add duration
+      const bookingDateStr = dayjs(booking.booking_date)
+        .tz("Asia/Jakarta")
+        .format("YYYY-MM-DD");
+      const startDateTime = bookingDateStr + "T" + booking.start_time;
+      const startDate = dayjs.tz(startDateTime, "Asia/Jakarta");
+
+      // Add duration in days to get end time
       const endDate = startDate.add(booking.duration, "day");
 
       return endDate.format("DD MMM YYYY, HH:mm");
     } catch (error) {
       console.error("Error calculating end time:", error);
       return "Invalid time";
+    }
+  };
+
+  // Display end time using actual return date and time instead of calculation
+  const displayEndTime = (booking: Booking): string => {
+    try {
+      // If end_date and end_time are available, use them directly
+      if (booking.end_date && isValidDate(booking.end_date) && booking.end_time) {
+        const endDateStr = dayjs(booking.end_date).tz("Asia/Jakarta").format("YYYY-MM-DD");
+        const endDateTime = endDateStr + "T" + booking.end_time;
+        return dayjs.tz(endDateTime, "Asia/Jakarta").format("DD MMM YYYY, HH:mm");
+      }
+      
+      // If only end_date is available, use it with default time
+      if (booking.end_date && isValidDate(booking.end_date)) {
+        return dayjs(booking.end_date)
+          .tz("Asia/Jakarta")
+          .format("DD MMM YYYY, 08:00");
+      }
+      
+      // Fallback to calculation if end_date is not available
+      return calculateEndTime(booking);
+    } catch (error) {
+      console.error("Error displaying end time:", error);
+      return "Invalid time";
+    }
+  };
+
+  // Format creation date to show when booking was created
+  const formatCreationDate = (booking: Booking): string => {
+    try {
+      // Use booking_date instead of created_at for "Tanggal Pemesanan Dibuat"
+      return dayjs(booking.booking_date)
+        .tz("Asia/Jakarta")
+        .format("DD MMM YYYY");
+    } catch (error) {
+      console.error("Error formatting creation date:", error);
+      return "Invalid date";
     }
   };
 
@@ -1203,11 +1237,11 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   {booking.vehicle_name}
                                 </TableCell>
                                 <TableCell>
-                                  {dayjs(
-                                    booking.created_at,
-                                    "YYYY-MM-DD",
-                                  ).format("DD MMM YYYY")}
+                                  {dayjs(booking.booking_date)
+                                    .tz("Asia/Jakarta")
+                                    .format("DD MMM YYYY")}
                                 </TableCell>
+
                                 <TableCell>{booking.start_time}</TableCell>
                                 <TableCell>{booking.duration} Hari</TableCell>
                                 <TableCell>
@@ -1292,25 +1326,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           <p className="text-sm text-muted-foreground">
                                             Waktu Selesai
                                           </p>
-                                          {(() => {
-                                            const endDate = dayjs(
-                                              `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
-                                            ).add(booking.duration - 1, "day");
-
-                                            return (
-                                              <div key="end-date-display">
-                                                <p>
-                                                  Tanggal:{" "}
-                                                  {endDate.format(
-                                                    "DD MMM YYYY",
-                                                  )}
-                                                </p>
-                                                <p>
-                                                  Jam: {endDate.format("HH:mm")}
-                                                </p>
-                                              </div>
-                                            );
-                                          })()}
+                                          <p>{displayEndTime(booking)}</p>
                                         </div>
                                         <div>
                                           <p className="text-sm text-muted-foreground">
@@ -1334,11 +1350,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           <p>
                                             {booking?.created_at ||
                                             booking?.created_at_tz
-                                              ? formatDate(
+                                              ? dayjs(
                                                   booking.created_at_tz ||
                                                     booking.created_at,
-                                                  "dd MMM yyyy, HH:mm",
                                                 )
+                                                  .tz("Asia/Jakarta")
+                                                  .format("DD MMM YYYY, HH:mm")
                                               : "-"}
                                           </p>
                                         </div>
@@ -1530,10 +1547,9 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                     {booking.vehicle_name}
                                   </CardTitle>
                                   <CardDescription>
-                                    {formatDate(
-                                      booking.booking_date,
-                                      "dd MMM yyyy",
-                                    )}{" "}
+                                    {dayjs(booking.booking_date)
+                                      .tz("Asia/Jakarta")
+                                      .format("DD MMM YYYY")}{" "}
                                     at {booking.start_time}
                                   </CardDescription>
                                 </div>
@@ -1638,7 +1654,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                       <p className="text-muted-foreground">
                                         Waktu Selesai
                                       </p>
-                                      <p>{calculateEndTime(booking)}</p>
+                                      <p>{displayEndTime(booking)}</p>
                                     </div>
                                     <div>
                                       <p className="text-muted-foreground">

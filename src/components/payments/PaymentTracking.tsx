@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { format, subDays, isAfter, isBefore } from "date-fns";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 import {
   Accordion,
   AccordionContent,
@@ -342,6 +349,34 @@ const PaymentTracking = ({
               licensePlate = booking.plate_number;
             }
 
+            // Parse booking_date properly using dayjs with WIB timezone
+            let bookingDate;
+            try {
+              if (booking.booking_date) {
+                // Parse the date string as date-only in WIB timezone to avoid shifts
+                const dateStr = booking.booking_date.toString().split('T')[0]; // Get YYYY-MM-DD part only
+                bookingDate = dayjs.tz(dateStr, "Asia/Jakarta").toDate();
+              } else {
+                bookingDate = new Date();
+              }
+            } catch (error) {
+              console.error("Error parsing booking_date:", error);
+              bookingDate = new Date();
+            }
+
+            // Parse created_at properly using dayjs with WIB timezone
+            let createdAt;
+            try {
+              if (booking.created_at) {
+                createdAt = dayjs(booking.created_at).tz("Asia/Jakarta").toDate();
+              } else {
+                createdAt = new Date();
+              }
+            } catch (error) {
+              console.error("Error parsing created_at:", error);
+              createdAt = new Date();
+            }
+
             return {
               id: booking.id,
               vehicle_id: booking.vehicle_id || "",
@@ -352,7 +387,7 @@ const PaymentTracking = ({
                   : undefined,
               license_plate: licensePlate,
               user_id: booking.user_id || booking.customer_id || "",
-              booking_date: new Date(booking.booking_date || new Date()),
+              booking_date: bookingDate,
               start_time: booking.start_time || "00:00",
               duration: booking.duration || 1,
               status: booking.bookings_status || "pending",
@@ -361,7 +396,7 @@ const PaymentTracking = ({
               paid_amount: booking.paid_amount || 0,
               payment_method: booking.payment_method || "Unknown",
               transaction_id: booking.transaction_id || "",
-              created_at: new Date(booking.created_at || new Date()),
+              created_at: createdAt,
               remaining_payments: booking.remaining_payments || 0,
             };
           });
@@ -894,7 +929,7 @@ const PaymentTracking = ({
                                   Payment Date
                                 </p>
                                 <p className="text-sm">
-                                  {format(payment.date, "PPP")}
+                                  {dayjs(payment.date).tz("Asia/Jakarta").format("DD MMM YYYY")}
                                 </p>
                               </div>
                               {payment.due_date && (
@@ -903,7 +938,7 @@ const PaymentTracking = ({
                                     Due Date
                                   </p>
                                   <p className="text-sm">
-                                    {format(payment.due_date, "PPP")}
+                                    {dayjs(payment.due_date).tz("Asia/Jakarta").format("DD MMM YYYY")}
                                     {payment.status === "overdue" && (
                                       <span className="text-destructive ml-2">
                                         (Overdue)
@@ -1060,7 +1095,7 @@ const PaymentTracking = ({
                               <div>
                                 <p className="text-sm font-medium">Due Date</p>
                                 <p className="text-sm">
-                                  {format(payment.due_date, "PPP")}
+                                  {dayjs(payment.due_date).tz("Asia/Jakarta").format("DD MMM YYYY")}
                                   {payment.status === "overdue" && (
                                     <span className="text-destructive ml-2">
                                       (Overdue)

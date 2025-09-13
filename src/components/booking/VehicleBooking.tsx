@@ -122,6 +122,15 @@ const VehicleBooking = ({
   const [make, setmake] = useState(null);
   const [model, setmodel] = useState(null);
 
+  const formatDateForDB = (date: Date) => {
+    // Format date as YYYY-MM-DD in local timezone to avoid timezone shifts
+    // Use the date components directly instead of timezone conversion
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const handleVehicleSelect = (vehicle) => {
     setSelectedVehicle(vehicle);
     setvehicleType(vehicle.type);
@@ -476,15 +485,16 @@ const VehicleBooking = ({
       const bookingData = {
         user_id: user.id,
         vehicle_id: selectedVehicle.id,
-        start_date: pickupDate.toISOString().split("T")[0],
-        end_date: returnDate.toISOString().split("T")[0],
-        start_time: startTime,
-        end_time: returnTime,
-        rental_days: rentalDuration,
-        total_amount: totalPrice,
+        booking_date: formatDateForDB(pickupDate), // Use booking_date instead of start_date
+        start_date: formatDateForDB(pickupDate), // Add start_date column
+        end_date: formatDateForDB(returnDate), // Add end_date column
+        start_time: pickupTime, // Use pickupTime instead of startTime
+        end_time: returnTime, // Add end_time column with returnTime
+        duration: rentalDuration, // Use duration instead of rental_days
+        total_amount: calculateTotal(), // Use calculateTotal() instead of totalPrice
         status: "pending",
         payment_method: paymentMethod,
-        driver_fee: driverFee,
+        driver_id: driverId, // Add driver_id
         vehicle_type: selectedVehicle?.type || "",
         vehicle_name: selectedVehicle?.name || "",
         make: selectedVehicle?.make || "",
@@ -546,30 +556,6 @@ const VehicleBooking = ({
       if (data && data.length > 0) {
         const newBookingId = data[0].id;
         setBookingId(newBookingId);
-
-        // Insert GPS fee as a booking item
-        try {
-          const { error: itemError } = await supabase
-            .from("booking_items")
-            .insert({
-              booking_id: newBookingId,
-              item_type: "gps",
-              item_name: "GPS",
-              description: `GPS tracking device rental for ${rentalDuration} days`,
-              quantity: rentalDuration,
-              unit_price: 5000,
-              total_price: gpsFee,
-            });
-
-          if (itemError) {
-            console.error("Error creating GPS booking item:", itemError);
-          } else {
-            console.log("GPS booking item created successfully");
-          }
-        } catch (itemError) {
-          console.error("Error creating GPS booking item:", itemError);
-        }
-
         setIsBookingSuccess(true);
       }
     } catch (error) {
