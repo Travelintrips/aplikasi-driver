@@ -231,7 +231,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
               balance_after: balanceAfter,
               date: localDate, // ✅ sudah dikonversi ke WIB
               status: "completed",
-              reference_no: histori.kode_booking || histori.id,
+              reference_no: histori.code_booking || histori.id,
             });
           });
         }

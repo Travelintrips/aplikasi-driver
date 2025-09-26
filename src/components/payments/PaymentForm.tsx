@@ -386,7 +386,7 @@ const PaymentForm = () => {
 
           // Create histori_transaksi record
           const historiTransaksiData = {
-            kode_booking: booking.code_booking || booking.id,
+            code_booking: booking.code_booking || booking.id,
             nominal: paymentAmountToProcess,
             saldo_akhir: newDriverSaldo,
             keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} - ${paymentMethod}`,
@@ -545,6 +545,122 @@ const PaymentForm = () => {
           console.error("Error in payment completion process:", error);
           // Don't fail the payment if driver update fails, just log the error
         }
+      }
+
+      // Send WhatsApp notification after successful payment
+      try {
+        // Get driver/user information for the notification
+        let driverName = "Unknown Driver";
+        let driverPhone = "";
+
+        try {
+          // Get current authenticated user first
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          console.log("Current user:", user);
+
+          if (user) {
+            // Try to get user metadata first (name might be stored here)
+            if (user.user_metadata?.name) {
+              driverName = user.user_metadata.name;
+              console.log("Found driver name from user metadata:", driverName);
+            } else if (user.user_metadata?.full_name) {
+              driverName = user.user_metadata.full_name;
+              console.log("Found driver name from user full_name:", driverName);
+            }
+
+            // Try to get phone from user metadata
+            if (user.user_metadata?.phone) {
+              driverPhone = user.user_metadata.phone;
+            }
+
+            // If still no name, try from drivers table using user.id
+            if (driverName === "Unknown Driver") {
+              const { data: driverData, error: driverError } = await supabase
+                .from("drivers")
+                .select("name, phone")
+                .eq("id", user.id)
+                .single();
+
+              if (!driverError && driverData) {
+                driverName = driverData.name || "Unknown Driver";
+                driverPhone = driverData.phone || driverPhone;
+                console.log("Found driver from drivers table:", driverName);
+              }
+            }
+
+            // If still no name, try from drivers table using email
+            if (driverName === "Unknown Driver" && user.email) {
+              const { data: emailDriverData, error: emailDriverError } =
+                await supabase
+                  .from("drivers")
+                  .select("name, phone")
+                  .eq("email", user.email)
+                  .single();
+
+              if (!emailDriverError && emailDriverData) {
+                driverName = emailDriverData.name || "Unknown Driver";
+                driverPhone = emailDriverData.phone || driverPhone;
+                console.log("Found driver from email lookup:", driverName);
+              }
+            }
+
+            // Final fallback: use email as name if nothing else works
+            if (driverName === "Unknown Driver" && user.email) {
+              driverName = user.email.split("@")[0]; // Use email username part
+              console.log("Using email username as driver name:", driverName);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching driver info for notification:", error);
+        }
+
+        // Use vehicle_name from booking if available, otherwise use vehicle.name
+        const vehicleName =
+          booking.vehicle_name || vehicle?.name || "Unknown Vehicle";
+        const vehicleType = booking.vehicle_type || vehicle?.type || "";
+        const licensePlate =
+          booking.license_plate || vehicle?.license_plate || "";
+        const vehicleMake = booking.make || vehicle?.make || "";
+        const vehicleModel = booking.model || vehicle?.model || "";
+
+        const bookingDetails = `Booking berhasil dibuat!
+
+Detail Booking:
+- Kendaraan: ${vehicleName}${vehicleType ? ` (${vehicleType})` : ""}
+- Merk/Model: ${vehicleMake}${vehicleModel ? ` ${vehicleModel}` : ""}
+- Plat Nomor: ${licensePlate}
+- Tanggal: ${new Date(booking.booking_date).toLocaleDateString("id-ID")}
+- Waktu: ${booking.start_time}
+- Total: Rp ${paymentAmountToProcess.toLocaleString("id-ID")}
+- Status: Pembayaran Berhasil
+- Driver: ${driverName}${driverPhone ? ` (${driverPhone})` : ""}
+- Booking ID: ${booking.id}`;
+
+        const response = await fetch("https://api.fonnte.com/send", {
+          method: "POST",
+          headers: {
+            Authorization: "3hYIZghAc5N1!sUe3dMb",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: "08991161699",
+            message: bookingDetails,
+          }),
+        });
+
+        if (response.ok) {
+          console.log("WhatsApp notification sent successfully");
+        } else {
+          console.error("Failed to send WhatsApp notification");
+        }
+      } catch (notificationError) {
+        console.error(
+          "Error sending WhatsApp notification:",
+          notificationError,
+        );
+        // Don't fail the payment if notification fails
       }
 
       setIsPaymentSuccess(true);

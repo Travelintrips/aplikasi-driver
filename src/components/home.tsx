@@ -568,8 +568,8 @@ const Home = () => {
       // Generate order ID
       const orderId = `TOP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
       
-      // Construct API URL using the PHP endpoint
-      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}`;
+      // Construct API URL using the PHP endpoint with driverId
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}&driverId=${user?.id || ''}`;
       
       // Open payment URL in new window
       const paymentWindow = window.open(apiUrl, '_blank', 'width=600,height=700,scrollbars=yes,resizable=yes');
@@ -604,6 +604,63 @@ const Home = () => {
       });
     } finally {
       setIsQuickTopupLoading(false);
+    }
+  };
+
+  const handleQuickTopup2 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsQuickTopup2Loading(true);
+
+    try {
+      if (!quickTopup2Amount || parseFloat(quickTopup2Amount) < 10000) {
+        toast({
+          title: "Error",
+          description: "Minimum top-up adalah Rp 10.000",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
+      }
+
+      // Generate order ID
+      const orderId = `TOP2-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      
+      // Construct API URL using the new PHP endpoint with driverId
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopup2Amount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}&driverId=${user?.id || ''}`;
+      
+      // Open payment URL in new window
+      const paymentWindow = window.open(apiUrl, '_blank', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      if (!paymentWindow) {
+        toast({
+          title: "Error",
+          description: "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
+      }
+
+      toast({
+        title: "Pembayaran Dibuka",
+        description: "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
+        duration: 5000,
+        className: "bg-blue-50 border-blue-200",
+      });
+
+      // Reset form
+      setQuickTopup2Amount("");
+      
+    } catch (error) {
+      console.error("Error processing quick topup 2:", error);
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat memproses pembayaran.",
+        duration: 5000,
+        className: "bg-red-50 border-red-200",
+      });
+    } finally {
+      setIsQuickTopup2Loading(false);
     }
   };
 
@@ -1874,9 +1931,7 @@ const Home = () => {
                     Quick Topup
                   </Button>
                   <Button
-                    variant={
-                      activeTab === "topup-history" ? "default" : "ghost"
-                    }
+                    variant={activeTab === "topup-history" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => {
                       setActiveTab("topup-history");

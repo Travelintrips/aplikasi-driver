@@ -781,18 +781,19 @@ export type Database = {
           customer_id: string | null
           DATE_PART: number | null
           discount_percent: number | null
+          driver_fee: number
           driver_id: string | null
           driver_name: string | null
           driver_option: string | null
           duration: number | null
           end_date: string | null
+          end_time: string | null
           id: string
           is_backdated: boolean | null
           journal_entry_id: string | null
           license_plate: string | null
           make: string | null
           model: string | null
-          name: string | null
           notes: string | null
           notes_admin: string | null
           notes_driver: string | null
@@ -808,6 +809,7 @@ export type Database = {
           quantity: number | null
           remaining_payment: number | null
           remaining_payments: number | null
+          rental_days: number
           return_time: string | null
           role_id: number | null
           role_name: string | null
@@ -837,18 +839,19 @@ export type Database = {
           customer_id?: string | null
           DATE_PART?: number | null
           discount_percent?: number | null
+          driver_fee?: number
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
           duration?: number | null
           end_date?: string | null
+          end_time?: string | null
           id?: string
           is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
-          name?: string | null
           notes?: string | null
           notes_admin?: string | null
           notes_driver?: string | null
@@ -864,6 +867,7 @@ export type Database = {
           quantity?: number | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          rental_days?: number
           return_time?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -893,18 +897,19 @@ export type Database = {
           customer_id?: string | null
           DATE_PART?: number | null
           discount_percent?: number | null
+          driver_fee?: number
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
           duration?: number | null
           end_date?: string | null
+          end_time?: string | null
           id?: string
           is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
-          name?: string | null
           notes?: string | null
           notes_admin?: string | null
           notes_driver?: string | null
@@ -920,6 +925,7 @@ export type Database = {
           quantity?: number | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          rental_days?: number
           return_time?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -940,7 +946,7 @@ export type Database = {
           {
             foreignKeyName: "bookings_driver_id_fkey"
             columns: ["driver_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
@@ -1169,6 +1175,7 @@ export type Database = {
           name: string | null
           normal_balance: string | null
           parent_id: string | null
+          service_type: string | null
           total_credit: number | null
           total_debit: number | null
           total_price: number | null
@@ -1192,6 +1199,7 @@ export type Database = {
           name?: string | null
           normal_balance?: string | null
           parent_id?: string | null
+          service_type?: string | null
           total_credit?: number | null
           total_debit?: number | null
           total_price?: number | null
@@ -1215,6 +1223,7 @@ export type Database = {
           name?: string | null
           normal_balance?: string | null
           parent_id?: string | null
+          service_type?: string | null
           total_credit?: number | null
           total_debit?: number | null
           total_price?: number | null
@@ -1227,13 +1236,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chart_of_accounts_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "trial_balance_v"
-            referencedColumns: ["account_id"]
           },
         ]
       }
@@ -2417,13 +2419,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "general_ledger_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "trial_balance_v"
-            referencedColumns: ["account_id"]
-          },
-          {
             foreignKeyName: "general_ledger_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -2703,6 +2698,8 @@ export type Database = {
           keterangan: string | null
           kode_booking: string
           nominal: number
+          proof_url: string | null
+          request_by_role: string | null
           saldo_akhir: number
           saldo_awal: number | null
           status: string | null
@@ -2718,6 +2715,8 @@ export type Database = {
           keterangan?: string | null
           kode_booking: string
           nominal: number
+          proof_url?: string | null
+          request_by_role?: string | null
           saldo_akhir: number
           saldo_awal?: number | null
           status?: string | null
@@ -2733,6 +2732,8 @@ export type Database = {
           keterangan?: string | null
           kode_booking?: string
           nominal?: number
+          proof_url?: string | null
+          request_by_role?: string | null
           saldo_akhir?: number
           saldo_awal?: number | null
           status?: string | null
@@ -3165,6 +3166,8 @@ export type Database = {
           id: string
           journal_entry_id: string | null
           jurnal_id: string | null
+          license_plate: string | null
+          nama: string | null
           partner_id: string | null
           payment_id: string | null
           reference: string | null
@@ -3202,6 +3205,8 @@ export type Database = {
           id?: string
           journal_entry_id?: string | null
           jurnal_id?: string | null
+          license_plate?: string | null
+          nama?: string | null
           partner_id?: string | null
           payment_id?: string | null
           reference?: string | null
@@ -3239,6 +3244,8 @@ export type Database = {
           id?: string
           journal_entry_id?: string | null
           jurnal_id?: string | null
+          license_plate?: string | null
+          nama?: string | null
           partner_id?: string | null
           payment_id?: string | null
           reference?: string | null
@@ -3313,13 +3320,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "trial_balance_v"
-            referencedColumns: ["account_id"]
           },
           {
             foreignKeyName: "journal_entry_items_journal_entry_id_fkey"
@@ -4649,7 +4649,9 @@ export type Database = {
           proof_url: string | null
           reference_no: string | null
           request_by_role: string | null
+          sender_account: string | null
           sender_bank: string | null
+          sender_name: string | null
           status: string
           user_id: string
           verified_at: string | null
@@ -4667,7 +4669,9 @@ export type Database = {
           proof_url?: string | null
           reference_no?: string | null
           request_by_role?: string | null
+          sender_account?: string | null
           sender_bank?: string | null
+          sender_name?: string | null
           status?: string
           user_id: string
           verified_at?: string | null
@@ -4685,7 +4689,9 @@ export type Database = {
           proof_url?: string | null
           reference_no?: string | null
           request_by_role?: string | null
+          sender_account?: string | null
           sender_bank?: string | null
+          sender_name?: string | null
           status?: string
           user_id?: string
           verified_at?: string | null
@@ -5287,13 +5293,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vehicles_driver_id_fkey1"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["driver_id"]
-          },
-          {
             foreignKeyName: "vehicles_vehicle_type_id_fkey"
             columns: ["vehicle_type_id"]
             isOneToOne: false
@@ -5530,13 +5529,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "general_ledger_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "trial_balance_v"
-            referencedColumns: ["account_id"]
-          },
-          {
             foreignKeyName: "general_ledger_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -5594,13 +5586,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "trial_balance_v"
-            referencedColumns: ["account_id"]
           },
           {
             foreignKeyName: "journal_entry_items_journal_entry_id_fkey"
@@ -5663,23 +5648,6 @@ export type Database = {
         }
         Relationships: []
       }
-      trial_balance_v: {
-        Row: {
-          account_code: string | null
-          account_id: string | null
-          account_name: string | null
-          account_type: string | null
-          closing_balance: number | null
-          credit_balance: number | null
-          debit_balance: number | null
-          id: string | null
-          opening_balance: number | null
-          period: string | null
-          total_credit: number | null
-          total_debit: number | null
-        }
-        Relationships: []
-      }
       trial_balance_view: {
         Row: {
           account_code: string | null
@@ -5693,45 +5661,27 @@ export type Database = {
       v_topup_requests: {
         Row: {
           account_holder_received: string | null
+          admin_email: string | null
+          admin_full_name: string | null
           amount: number | null
           bank_name: string | null
           created_at: string | null
           destination_account: string | null
           id: string | null
           method: string | null
+          note: string | null
           proof_url: string | null
           reference_no: string | null
           request_by_role: string | null
+          sender_account: string | null
+          sender_bank: string | null
+          sender_name: string | null
           status: string | null
+          user_email: string | null
+          user_full_name: string | null
           user_id: string | null
-        }
-        Insert: {
-          account_holder_received?: string | null
-          amount?: number | null
-          bank_name?: string | null
-          created_at?: string | null
-          destination_account?: string | null
-          id?: string | null
-          method?: string | null
-          proof_url?: string | null
-          reference_no?: string | null
-          request_by_role?: string | null
-          status?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          account_holder_received?: string | null
-          amount?: number | null
-          bank_name?: string | null
-          created_at?: string | null
-          destination_account?: string | null
-          id?: string | null
-          method?: string | null
-          proof_url?: string | null
-          reference_no?: string | null
-          request_by_role?: string | null
-          status?: string | null
-          user_id?: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Relationships: []
       }
@@ -5826,6 +5776,10 @@ export type Database = {
         Args: { service: string }
         Returns: string
       }
+      get_driver_kpis: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_table_info: {
         Args: { table_name: string }
         Returns: {
@@ -5838,6 +5792,25 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           table_name: string
+        }[]
+      }
+      get_trial_balance: {
+        Args: { p_end?: string; p_org?: string; p_start?: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          closing_balance: number
+          credit_balance: number
+          debit_balance: number
+          id: string
+          net_balance: number
+          opening_balance: number
+          period_credit: number
+          period_debit: number
+          period_end: string
+          period_start: string
         }[]
       }
       get_trial_balance_summary: {
@@ -5950,6 +5923,10 @@ export type Database = {
           | { p_admin: string; p_reason: string; p_request_id: string }
           | { p_reason: string; p_request_id: string }
         Returns: undefined
+      }
+      resolve_ref_user_id: {
+        Args: { _ref_id: string; _ref_table: string }
+        Returns: string
       }
       sync_trial_balance_with_gl: {
         Args: { p_period_end: string; p_period_start: string }
