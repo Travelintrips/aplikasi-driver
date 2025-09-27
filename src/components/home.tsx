@@ -340,7 +340,8 @@ const Home = () => {
 
       // Find the selected payment method to get bank name
       const selectedPaymentMethod = paymentMethods.find(
-        (method) => method.account_number === topupForm.destination_account,
+        (payment_method) =>
+          payment_method.account_number === topupForm.destination_account,
       );
       const receivingBankName = selectedPaymentMethod?.bank_name || "";
 
@@ -387,7 +388,7 @@ const Home = () => {
           account_holder_received: selectedPaymentMethod?.account_holder || "",
           proof_url: proofUrl,
           reference_no: referenceNo,
-          method: "bank_transfer",
+          payment_method: "bank_transfer",
           status: "pending",
           request_by_role: userRole,
         })
@@ -567,17 +568,22 @@ const Home = () => {
 
       // Generate order ID
       const orderId = `TOP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      
+
       // Construct API URL using the PHP endpoint with driverId
-      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}&driverId=${user?.id || ''}`;
-      
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || "Driver")}&phone=${encodeURIComponent(user?.phone || "08123456789")}&order=${orderId}&driverId=${user?.id || ""}`;
+
       // Open payment URL in new window
-      const paymentWindow = window.open(apiUrl, '_blank', 'width=600,height=700,scrollbars=yes,resizable=yes');
-      
+      const paymentWindow = window.open(
+        apiUrl,
+        "_blank",
+        "width=600,height=700,scrollbars=yes,resizable=yes",
+      );
+
       if (!paymentWindow) {
         toast({
           title: "Error",
-          description: "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
+          description:
+            "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
           duration: 5000,
           className: "bg-red-50 border-red-200",
         });
@@ -586,14 +592,14 @@ const Home = () => {
 
       toast({
         title: "Pembayaran Dibuka",
-        description: "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
+        description:
+          "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
         duration: 5000,
         className: "bg-blue-50 border-blue-200",
       });
 
       // Reset form
       setQuickTopupAmount("");
-      
     } catch (error) {
       console.error("Error processing quick topup:", error);
       toast({
@@ -624,17 +630,22 @@ const Home = () => {
 
       // Generate order ID
       const orderId = `TOP2-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      
+
       // Construct API URL using the new PHP endpoint with driverId
-      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopup2Amount}&customer=${encodeURIComponent(user?.name || 'Driver')}&phone=${encodeURIComponent(user?.phone || '08123456789')}&order=${orderId}&driverId=${user?.id || ''}`;
-      
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopup2Amount}&customer=${encodeURIComponent(user?.name || "Driver")}&phone=${encodeURIComponent(user?.phone || "08123456789")}&order=${orderId}&driverId=${user?.id || ""}`;
+
       // Open payment URL in new window
-      const paymentWindow = window.open(apiUrl, '_blank', 'width=600,height=700,scrollbars=yes,resizable=yes');
-      
+      const paymentWindow = window.open(
+        apiUrl,
+        "_blank",
+        "width=600,height=700,scrollbars=yes,resizable=yes",
+      );
+
       if (!paymentWindow) {
         toast({
           title: "Error",
-          description: "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
+          description:
+            "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
           duration: 5000,
           className: "bg-red-50 border-red-200",
         });
@@ -643,14 +654,14 @@ const Home = () => {
 
       toast({
         title: "Pembayaran Dibuka",
-        description: "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
+        description:
+          "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
         duration: 5000,
         className: "bg-blue-50 border-blue-200",
       });
 
       // Reset form
       setQuickTopup2Amount("");
-      
     } catch (error) {
       console.error("Error processing quick topup 2:", error);
       toast({
@@ -1664,13 +1675,13 @@ const Home = () => {
                               className="space-y-3"
                               disabled={isTopupProcessing}
                             >
-                              {paymentMethods.map((method, index) => (
+                              {paymentMethods.map((payment_method, index) => (
                                 <div
                                   key={index}
                                   className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                                 >
                                   <RadioGroupItem
-                                    value={method.account_number}
+                                    value={payment_method.account_number}
                                     id={`bank-${index}`}
                                   />
                                   <Label
@@ -1678,11 +1689,11 @@ const Home = () => {
                                     className="flex-1 cursor-pointer font-normal"
                                   >
                                     <div className="font-medium">
-                                      {method.bank_name}
+                                      {payment_method.bank_name}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
-                                      {method.account_number} -{" "}
-                                      {method.account_holder}
+                                      {payment_method.account_number} -{" "}
+                                      {payment_method.account_holder}
                                     </div>
                                   </Label>
                                 </div>
@@ -1931,7 +1942,9 @@ const Home = () => {
                     Quick Topup
                   </Button>
                   <Button
-                    variant={activeTab === "topup-history" ? "default" : "ghost"}
+                    variant={
+                      activeTab === "topup-history" ? "default" : "ghost"
+                    }
                     className="w-full justify-start"
                     onClick={() => {
                       setActiveTab("topup-history");

@@ -44,7 +44,7 @@ interface TopupRequest {
   account_holder_received?: string;
   proof_url?: string;
   reference_no: string;
-  method: string;
+  payment_method: string;
   status: "pending" | "verified" | "rejected";
   request_by_role: string;
   created_at: string;
@@ -447,9 +447,9 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
                             Rp {request.amount.toLocaleString()}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {request.method === "bank_transfer"
+                            {request.payment_method === "bank_transfer"
                               ? "Transfer Bank"
-                              : request.method}
+                              : request.payment_method}
                           </p>
                         </div>
                       </div>
