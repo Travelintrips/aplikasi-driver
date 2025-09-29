@@ -390,9 +390,10 @@ const PaymentForm = () => {
             nominal: paymentAmountToProcess,
             saldo_akhir: newDriverSaldo,
             keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} - ${paymentMethod}`,
-            //trans_date: new Date().toISOString().split("T")[0],
             user_id: booking.driver_id,
             jenis_transaksi: "Sewa Kendaraan Driver",
+            payment_method: paymentMethod || "saldo",
+            status: booking.status || "pending",
           };
 
           const { error: historiError } = await supabase
