@@ -475,7 +475,8 @@ const PaymentForm = () => {
 
               if (!driverError && driverData) {
                 const currentSaldo = driverData.saldo || 0;
-                const newSaldo = currentSaldo + paymentAmountToProcess;
+                // kurangi saldo karena driver membayar
+                const newSaldo = currentSaldo - paymentAmountToProcess;
 
                 const { error: updateDriverError } = await supabase
                   .from("drivers")
@@ -497,7 +498,7 @@ const PaymentForm = () => {
                     "status: standby",
                   );
 
-                  // Call external API to update driver saldo
+                  // Call external API to sync driver saldo
                   const apiSuccess = await updateDriverSaldoAPI(
                     booking.driver_id,
                     newSaldo,
