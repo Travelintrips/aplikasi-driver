@@ -647,7 +647,7 @@ Detail Booking:
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            target: "08991161699",
+            target: ["120363403813189599@g.us", driverPhone],
             message: bookingDetails,
           }),
         });
