@@ -396,36 +396,111 @@ const Home = () => {
         .single();
 
       if (error) {
-        console.error("Database error:", error);
-        throw error;
+        console.error("Error submitting topup request:", error);
+        toast({
+          title: "Error",
+          description: "Gagal mengirim permintaan top-up. Silakan coba lagi.",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
       }
 
-      console.log("Topup request created:", data);
+      // 🧾 Insert ke histori_transaksi khusus DRIVER
+      try {
+        // Pastikan role berisi kata 'driver' (misal: Driver Perusahaan)
+        if (userRole?.toLowerCase().includes("driver")) {
+          // Ambil saldo user sekarang
+          const { data: userData, error: userError } = await supabase
+            .from("users")
+            .select("saldo")
+            .eq("id", sessionData.session.user.id)
+            .single();
+
+          if (userError) {
+            console.error("❌ Error fetching user saldo:", userError);
+          }
+
+          // Gunakan saldo user (fallback ke 0 kalau null)
+          const currentSaldo = Number(userData?.saldo) || 0;
+
+          console.log("[HISTORI] Inserting record:", {
+            user_id: sessionData.session.user.id,
+            code_booking: referenceNo,
+            nominal: parseFloat(topupForm.amount),
+            saldo_awal: currentSaldo,
+            status: "pending",
+            role: userRole,
+          });
+
+          // ✅ Insert ke histori_transaksi
+          // ✅ Insert ke histori_transaksi
+          const { data: insertData, error: historiError } = await supabase
+            .from("histori_transaksi")
+            .insert({
+              user_id: sessionData.session.user.id,
+              code_booking: referenceNo, // sinkron dengan topup_requests.reference_no
+              nominal: parseFloat(topupForm.amount),
+              jenis_transaksi: "Topup Driver Request",
+              saldo_awal: currentSaldo,
+              saldo_akhir: currentSaldo,
+              status: "pending",
+              trans_date: new Date().toISOString(),
+              payment_method: "bank_transfer",
+
+              // 🏦 tambahan kolom bank agar ikut tersimpan
+              bank_name: receivingBankName || null,
+              account_number: topupForm.destination_account || null,
+              account_holder_received:
+                selectedPaymentMethod?.account_holder || null,
+            })
+            .select();
+
+          if (historiError) {
+            console.error(
+              "❌ Error inserting into histori_transaksi:",
+              JSON.stringify(historiError, null, 2),
+            );
+          } else {
+            console.log("✅ Inserted Topup Driver Request:", insertData);
+          }
+        } else {
+          console.log(
+            "🚫 Skip insert histori_transaksi: userRole bukan driver",
+            userRole,
+          );
+        }
+      } catch (historiError) {
+        console.error("⚠️ Error in histori_transaksi insertion:", historiError);
+      }
+
+      // 🚀 Jika sudah berhasil, lanjutkan logika berikut:
+      console.log("Topup request submitted successfully:", data);
       console.log("Generated reference number:", referenceNo);
 
-      // Set processing state and store topup ID
       setIsTopupProcessing(true);
       setCurrentTopupId(data.id);
 
       toast({
         title: "Permintaan Top-up Berhasil Dikirim",
-        description: "Mohon menunggu request Topup Sedang di proses",
+        description: "Mohon menunggu request Topup sedang diproses oleh admin.",
         duration: 0,
         className: "bg-green-50 border-green-200",
       });
 
       setTopupSuccess(true);
-      // Reset form - only the whitelisted fields
+
+      // Reset form
       setTopupForm({
         amount: "",
         destination_account: "",
         proof_url: null,
       });
 
-      // Start monitoring topup status
+      // Monitor status topup
       monitorTopupStatus(data.id);
 
-      // Hide success message after 5 seconds
+      // Hide success toast setelah 5 detik
       setTimeout(() => {
         setTopupSuccess(false);
       }, 5000);

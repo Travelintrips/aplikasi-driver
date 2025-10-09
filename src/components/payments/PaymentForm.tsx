@@ -550,6 +550,7 @@ const PaymentForm = () => {
       }
 
       // Send WhatsApp notification after successful payment
+
       try {
         // Get driver/user information for the notification
         let driverName = "Unknown Driver";
@@ -572,7 +573,7 @@ const PaymentForm = () => {
               console.log("Found driver name from user full_name:", driverName);
             }
 
-            // Try to get phone from user metadata
+            // ✅ Ambil nomor telepon dari metadata (pakai phone, bukan phone_number)
             if (user.user_metadata?.phone) {
               driverPhone = user.user_metadata.phone;
             }
@@ -581,13 +582,13 @@ const PaymentForm = () => {
             if (driverName === "Unknown Driver") {
               const { data: driverData, error: driverError } = await supabase
                 .from("drivers")
-                .select("name, phone")
+                .select("name, phone_number") // ✅ tabel drivers pakai phone_number
                 .eq("id", user.id)
                 .single();
 
               if (!driverError && driverData) {
                 driverName = driverData.name || "Unknown Driver";
-                driverPhone = driverData.phone || driverPhone;
+                driverPhone = driverData.phone_number || driverPhone; // ✅ fallback dari drivers
                 console.log("Found driver from drivers table:", driverName);
               }
             }
@@ -597,13 +598,13 @@ const PaymentForm = () => {
               const { data: emailDriverData, error: emailDriverError } =
                 await supabase
                   .from("drivers")
-                  .select("name, phone")
+                  .select("name, phone_number") // ✅ tetap pakai phone_number di drivers
                   .eq("email", user.email)
                   .single();
 
               if (!emailDriverError && emailDriverData) {
                 driverName = emailDriverData.name || "Unknown Driver";
-                driverPhone = emailDriverData.phone || driverPhone;
+                driverPhone = emailDriverData.phone_number || driverPhone;
                 console.log("Found driver from email lookup:", driverName);
               }
             }
@@ -627,35 +628,60 @@ const PaymentForm = () => {
         const vehicleMake = booking.make || vehicle?.make || "";
         const vehicleModel = booking.model || vehicle?.model || "";
 
+        // Fungsi normalize hanya sekali
+        function normalizePhone(phone: string | undefined) {
+          if (!phone) return "";
+          phone = phone.replace(/\D/g, "").trim(); // hapus non-digit
+          if (phone.startsWith("0")) return "62" + phone.substring(1);
+          if (phone.startsWith("62")) return phone;
+          return phone;
+        }
+
+        const targetPhone = normalizePhone(driverPhone);
+
+        const code_booking2 = booking.code_booking;
+
+        // Gabungkan grup + driver
+        const targets = [
+          "120363403813189599@g.us", // grup WA
+          targetPhone,
+        ].filter(Boolean);
+
+        if (targets.length === 0) {
+          console.error("❌ No valid targets for WhatsApp notification");
+          return;
+        }
+
         const bookingDetails = `Booking berhasil dibuat!
 
 Detail Booking:
-- Kendaraan: ${vehicleName}${vehicleType ? ` (${vehicleType})` : ""}
+- Type Kendaraan: ${vehicleType ? ` (${vehicleType})` : ""}
 - Merk/Model: ${vehicleMake}${vehicleModel ? ` ${vehicleModel}` : ""}
 - Plat Nomor: ${licensePlate}
 - Tanggal: ${new Date(booking.booking_date).toLocaleDateString("id-ID")}
 - Waktu: ${booking.start_time}
 - Total: Rp ${paymentAmountToProcess.toLocaleString("id-ID")}
 - Status: Pembayaran Berhasil
-- Driver: ${driverName}${driverPhone ? ` (${driverPhone})` : ""}
-- Booking ID: ${booking.id}`;
+- Driver: ${driverName}${targetPhone ? ` (${targetPhone})` : ""}
+- Booking ID: ${code_booking2}`;
 
-        const response = await fetch("https://api.fonnte.com/send", {
-          method: "POST",
-          headers: {
-            Authorization: "3hYIZghAc5N1!sUe3dMb",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            target: ["120363403813189599@g.us", driverPhone],
-            message: bookingDetails,
-          }),
-        });
+        const { data: result, error: fnError } =
+          await supabase.functions.invoke("supabase-functions-send-whatsapp", {
+            body: {
+              target: targets, // bisa array atau string
+              message: bookingDetails,
+            },
+          });
 
-        if (response.ok) {
-          console.log("WhatsApp notification sent successfully");
+        if (fnError) {
+          console.error("❌ Edge Function error:", fnError);
+        } else if (!result?.success) {
+          console.error("❌ Fonnte API error:", result?.error || result?.data);
         } else {
-          console.error("Failed to send WhatsApp notification");
+          console.log(
+            "✅ WhatsApp notification sent successfully:",
+            result.data,
+          );
         }
       } catch (notificationError) {
         console.error(
