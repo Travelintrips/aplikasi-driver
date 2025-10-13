@@ -210,14 +210,12 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
             }
 
             // ✅ Calculate balance_before correctly
-            const balanceAfter = Number(histori.saldo_akhir) || 0;
-            const balanceBefore =
-              type === "topup"
-                ? balanceAfter - Math.abs(transactionAmount)
-                : balanceAfter + Math.abs(transactionAmount);
+            // ✅ Gunakan saldo_awal dan saldo_akhir langsung dari histori_transaksi
+            const balanceBefore = Number(histori.saldo_awal) || 0;
+            const balanceAfter = Number(histori.saldo_akhir) || balanceBefore;
 
+            // ✅ Konversi waktu ke WIB
             const dateUTC = new Date(histori.trans_date);
-
             const localDate = new Date(
               dateUTC.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
             );
@@ -229,8 +227,13 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
               amount: transactionAmount,
               balance_before: balanceBefore,
               balance_after: balanceAfter,
-              date: localDate, // ✅ sudah dikonversi ke WIB
-              status: "completed",
+              date: localDate,
+              status:
+                histori.status?.toLowerCase() === "verified"
+                  ? "completed"
+                  : histori.status?.toLowerCase() === "rejected"
+                    ? "failed"
+                    : histori.status?.toLowerCase() || "pending",
               reference_no: histori.code_booking || histori.id,
             });
           });
@@ -337,21 +340,22 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
     switch (status) {
       case "completed":
         return (
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge className="bg-green-100 text-green-800 border border-green-300">
             Selesai
           </Badge>
         );
       case "pending":
         return (
-          <Badge
-            variant="outline"
-            className="border-yellow-500 text-yellow-700"
-          >
-            Pending
+          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300">
+            Menunggu
           </Badge>
         );
       case "failed":
-        return <Badge variant="destructive">Gagal</Badge>;
+        return (
+          <Badge className="bg-red-100 text-red-800 border border-red-300">
+            Ditolak
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
