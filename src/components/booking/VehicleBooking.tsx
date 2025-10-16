@@ -63,6 +63,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/use-toast";
 
 const formatToWIB = (isoString: string) => {
   return dayjs(isoString).tz("Asia/Jakarta").format("DD MMM YYYY, HH:mm");
@@ -83,6 +84,7 @@ const VehicleBooking = ({
   const modelFilter = searchParams.get("model");
   const makeFilter = searchParams.get("make");
   const { language } = useLanguage();
+  const { toast } = useToast();
   const [userSaldo, setUserSaldo] = useState(0);
   const [insufficientFunds, setInsufficientFunds] = useState(false);
 
@@ -315,6 +317,50 @@ const VehicleBooking = ({
     return `SKD-${dateTime}-${random}`;
   };
 
+  // Check for booking date gaps
+  // ✅ Versi revisi — lebih akurat dan aman
+  /* const checkLastBooking = async (driverId: string, newStartDate: Date) => {
+    const { data: lastBooking, error } = await supabase
+      .from("bookings")
+      .select("end_date")
+      .eq("driver_id", driverId)
+      .order("end_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching last booking:", error);
+      return true; // fallback: jangan blokir booking jika ada error
+    }
+
+    if (lastBooking) {
+      const lastEnd = new Date(lastBooking.end_date);
+      const start = new Date(newStartDate);
+
+      // hitung selisih hari berdasarkan UTC agar konsisten
+      const gapDays = Math.round(
+        (Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()) -
+          Date.UTC(
+            lastEnd.getFullYear(),
+            lastEnd.getMonth(),
+            lastEnd.getDate(),
+          )) /
+          (1000 * 60 * 60 * 24),
+      );
+
+      if (gapDays >= 0) {
+        toast({
+          variant: "destructive",
+          title: "⚠️ Tanggal tidak berurutan",
+          description: `Terdapat jeda ${gapDays - 1} hari antara booking terakhir (${format(lastEnd, "dd MMM yyyy")}) dan booking baru (${format(start, "dd MMM yyyy")}).`,
+        });
+        return false;
+      }
+    }
+
+    return true;
+  };*/
+
   const handleBookingSubmit = async () => {
     if (!selectedVehicle) return;
 
@@ -409,6 +455,14 @@ const VehicleBooking = ({
         );
         return;
       }
+
+      // Check for date gaps before proceeding
+      /*   if (pickupDate) {
+        const isValidDate = await checkLastBooking(driverId, pickupDate);
+        if (!isValidDate) {
+          return; // Stop booking if there's a gap
+        }
+      }*/
 
       const { data: existingDriverBookings, error: driverBookingError } =
         await supabase

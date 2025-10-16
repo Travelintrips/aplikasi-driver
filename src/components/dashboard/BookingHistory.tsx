@@ -68,6 +68,10 @@ import {
   Search,
   ArrowLeft,
   Globe,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 interface Booking {
@@ -158,6 +162,10 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     RemainingPayment[]
   >([]);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   // Fetch bookings from Supabase
   useEffect(() => {
     const fetchBookings = async () => {
@@ -200,6 +208,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           .select(
             `
             id,
+            created_by_role,
             created_at,
             created_at_tz,
             code_booking,
@@ -225,7 +234,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             remaining_payments
           `,
           )
-          .eq("user_id", currentUserId);
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false });
 
         console.log(
           "BookingHistory - Direct bookings query result:",
@@ -244,6 +254,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                 `
               id,
               created_at,
+              created_by_role,
               notes_driver,
               license_plate,
               plate_number,
@@ -782,19 +793,27 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   const displayEndTime = (booking: Booking): string => {
     try {
       // If end_date and end_time are available, use them directly
-      if (booking.end_date && isValidDate(booking.end_date) && booking.end_time) {
-        const endDateStr = dayjs(booking.end_date).tz("Asia/Jakarta").format("YYYY-MM-DD");
+      if (
+        booking.end_date &&
+        isValidDate(booking.end_date) &&
+        booking.end_time
+      ) {
+        const endDateStr = dayjs(booking.end_date)
+          .tz("Asia/Jakarta")
+          .format("YYYY-MM-DD");
         const endDateTime = endDateStr + "T" + booking.end_time;
-        return dayjs.tz(endDateTime, "Asia/Jakarta").format("DD MMM YYYY, HH:mm");
+        return dayjs
+          .tz(endDateTime, "Asia/Jakarta")
+          .format("DD MMM YYYY, HH:mm");
       }
-      
+
       // If only end_date is available, use it with default time
       if (booking.end_date && isValidDate(booking.end_date)) {
         return dayjs(booking.end_date)
           .tz("Asia/Jakarta")
           .format("DD MMM YYYY, 08:00");
       }
-      
+
       // Fallback to calculation if end_date is not available
       return calculateEndTime(booking);
     } catch (error) {
@@ -840,6 +859,17 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
 
     return true;
   });
+
+  // Calculate pagination for bookings
+  const totalPages = Math.ceil(filteredBookings.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedBookings = filteredBookings.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [bookingTab, date, vehicleFilter]);
 
   // Filter payments based on search query
   const filteredPayments = payments.filter(
@@ -1213,580 +1243,475 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                       </div>
                     </div>
 
-                    {filteredBookings.length > 0 ? (
-                      <div className="hidden md:block">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Kendaraan</TableHead>
-                              <TableHead>Tanggal Pemesanan</TableHead>
-                              <TableHead>Waktu Mulai</TableHead>
-                              <TableHead>Durasi</TableHead>
-                              <TableHead>Booking Status</TableHead>
-                              <TableHead>Total Harga</TableHead>
-                              <TableHead>Pembayaran</TableHead>
-                              <TableHead>Sisa Pembayaran</TableHead>
-                              <TableHead>Status Pembayaran</TableHead>
-                              <TableHead>Aksi</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredBookings.map((booking) => [
-                              <TableRow key={booking.id}>
-                                <TableCell className="font-medium">
-                                  {booking.vehicle_name}
-                                </TableCell>
-                                <TableCell>
-                                  {dayjs(booking.booking_date)
-                                    .tz("Asia/Jakarta")
-                                    .format("DD MMM YYYY")}
-                                </TableCell>
+                    {paginatedBookings.length === 0 ? (
+                      <Card className="p-8 text-center text-muted-foreground">
+                        Tidak ada pemesanan ditemukan
+                      </Card>
+                    ) : (
+                      <Card>
+                        <CardContent className="p-0">
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="border-b">
+                                <tr>
+                                  <th className="text-left py-3 px-4">
+                                    Kendaraan
+                                  </th>
+                                  <th className="text-left py-3 px-4">
+                                    Tanggal
+                                  </th>
+                                  <th className="text-left py-3 px-4">Waktu</th>
+                                  <th className="text-left py-3 px-4">
+                                    Durasi
+                                  </th>
+                                  <th className="text-left py-3 px-4">
+                                    Status
+                                  </th>
+                                  <th className="text-left py-3 px-4">Total</th>
+                                  <th className="text-left py-3 px-4">
+                                    Dibayar
+                                  </th>
+                                  <th className="text-left py-3 px-4">Sisa</th>
+                                  <th className="text-left py-3 px-4">
+                                    Status Bayar
+                                  </th>
+                                  <th className="text-left py-3 px-4">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {paginatedBookings.map((booking) => (
+                                  <React.Fragment key={booking.id}>
+                                    <tr className="border-b hover:bg-muted/20">
+                                      <td className="py-3 px-4 font-medium">
+                                        {booking.vehicle_name}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        {dayjs(booking.booking_date)
+                                          .tz("Asia/Jakarta")
+                                          .format("DD MMM YYYY")}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        {booking.start_time}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        {booking.duration} Hari
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <Badge
+                                          variant={getStatusBadgeVariant(
+                                            booking.status,
+                                          )}
+                                        >
+                                          {booking.status
+                                            .charAt(0)
+                                            .toUpperCase() +
+                                            booking.status.slice(1)}
+                                        </Badge>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        Rp{" "}
+                                        {booking.total_amount.toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        Rp{" "}
+                                        {(
+                                          booking.paid_amount || 0
+                                        ).toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        Rp{" "}
+                                        {getRemainingPayment(
+                                          booking,
+                                        ).toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <Badge
+                                          variant={getPaymentStatusBadgeVariant(
+                                            booking,
+                                          )}
+                                        >
+                                          {getPaymentStatusDisplay(booking)}
+                                        </Badge>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="w-full justify-center"
+                                          onClick={() =>
+                                            toggleBookingDetails(booking.id)
+                                          }
+                                        >
+                                          <div className="flex items-center">
+                                            {expandedBooking === booking.id ? (
+                                              <ChevronUp className="h-4 w-4 mr-1" />
+                                            ) : (
+                                              <ChevronDown className="h-4 w-4 mr-1" />
+                                            )}
+                                            {expandedBooking === booking.id
+                                              ? "Tutup"
+                                              : "Lihat Detail"}
+                                          </div>
+                                        </Button>
+                                      </td>
+                                    </tr>
 
-                                <TableCell>{booking.start_time}</TableCell>
-                                <TableCell>{booking.duration} Hari</TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={getStatusBadgeVariant(
-                                      booking.status,
-                                    )}
-                                  >
-                                    {booking.status.charAt(0).toUpperCase() +
-                                      booking.status.slice(1)}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  Rp {booking.total_amount.toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  Rp{" "}
-                                  {(booking.paid_amount || 0).toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  Rp{" "}
-                                  {getRemainingPayment(
-                                    booking,
-                                  ).toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={getPaymentStatusBadgeVariant(
-                                      booking,
-                                    )}
-                                  >
-                                    {getPaymentStatusDisplay(booking)}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full justify-center"
-                                    onClick={() =>
-                                      toggleBookingDetails(booking.id)
-                                    }
-                                  >
-                                    <div className="flex items-center">
-                                      <ChevronDown className="h-4 w-4 mr-1" />{" "}
-                                      Lihat Detail
-                                    </div>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>,
-                              expandedBooking === booking.id && (
-                                <TableRow key={`${booking.id}-details`}>
-                                  <TableCell
-                                    colSpan={7}
-                                    className="bg-muted/50"
-                                  >
-                                    <div className="p-4">
-                                      <h4 className="font-semibold mb-2">
-                                        Detail Pemesanan
-                                      </h4>
-                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Tipe Kendaraan
-                                          </p>
-                                          <p>{booking.vehicle_type}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Model Kendaraan
-                                          </p>
-                                          <p> {booking.vehicle_name}</p>
-                                          <p>{booking.license_plate}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Metode Pembayaran
-                                          </p>
-                                          <p>{booking.payment_method}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Waktu Selesai
-                                          </p>
-                                          <p>{displayEndTime(booking)}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            ID Pemesanan
-                                          </p>
-                                          <p>{booking.code_booking}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Keterangan Pembatalan
-                                          </p>
-                                          <p>
-                                            {booking.notes_driver ||
-                                              "Tidak ada pembatalan"}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <p className="text-sm text-muted-foreground">
-                                            Tanggal Pemesanan Dibuat
-                                          </p>
-                                          <p>
-                                            {booking?.created_at ||
-                                            booking?.created_at_tz
-                                              ? dayjs(
-                                                  booking.created_at_tz ||
-                                                    booking.created_at,
-                                                )
-                                                  .tz("Asia/Jakarta")
-                                                  .format("DD MMM YYYY, HH:mm")
-                                              : "-"}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="mt-4 flex gap-2">
-                                        {(booking.status === "pending" ||
-                                          booking.status === "approved") && (
-                                          <Dialog
-                                            open={
-                                              cancelDialogOpen === booking.id
-                                            }
-                                            onOpenChange={(open) => {
-                                              if (open) {
-                                                setCancelDialogOpen(booking.id);
-                                                setCancellationReason("");
-                                              } else {
-                                                setCancelDialogOpen(null);
-                                                setCancellationReason("");
-                                              }
-                                            }}
-                                          >
-                                            <DialogTrigger asChild>
-                                              <Button
-                                                variant="outline"
-                                                size="sm"
-                                              >
-                                                Batalkan Pemesanan
-                                              </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="sm:max-w-[425px]">
-                                              <DialogHeader>
-                                                <DialogTitle>
-                                                  Batalkan Pemesanan
-                                                </DialogTitle>
-                                                <DialogDescription>
-                                                  Apakah Anda yakin ingin
-                                                  membatalkan pemesanan ini?
-                                                </DialogDescription>
-                                              </DialogHeader>
-                                              <div className="grid gap-4 py-4">
-                                                <div className="grid gap-2">
-                                                  <label
-                                                    htmlFor="cancellation-reason"
-                                                    className="text-sm font-medium"
-                                                  >
-                                                    Keterangan Pembatalan *
-                                                  </label>
-                                                  <Textarea
-                                                    id="cancellation-reason"
-                                                    placeholder="Masukkan alasan pembatalan..."
-                                                    value={cancellationReason}
-                                                    onChange={(e) =>
-                                                      setCancellationReason(
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="min-h-[100px]"
-                                                  />
-                                                </div>
+                                    {expandedBooking === booking.id && (
+                                      <tr>
+                                        <td
+                                          colSpan={10}
+                                          className="bg-muted/50"
+                                        >
+                                          <div className="p-4">
+                                            <h4 className="font-semibold mb-2">
+                                              Detail Pemesanan
+                                            </h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Tipe Kendaraan
+                                                </p>
+                                                <p>{booking.vehicle_type}</p>
                                               </div>
-                                              <DialogFooter>
-                                                <Button
-                                                  variant="outline"
-                                                  onClick={() => {
-                                                    setCancelDialogOpen(null);
-                                                    setCancellationReason("");
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Model Kendaraan
+                                                </p>
+                                                <p> {booking.vehicle_name}</p>
+                                                <p>{booking.license_plate}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Metode Pembayaran
+                                                </p>
+                                                <p>{booking.payment_method}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Waktu Selesai
+                                                </p>
+                                                <p>{displayEndTime(booking)}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  ID Pemesanan
+                                                </p>
+                                                <p>{booking.code_booking}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Keterangan Pembatalan
+                                                </p>
+                                                <p>
+                                                  {booking.notes_driver ||
+                                                    "Tidak ada pembatalan"}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Tanggal Pemesanan Dibuat
+                                                </p>
+                                                <p>
+                                                  {booking?.created_at ||
+                                                  booking?.created_at_tz
+                                                    ? dayjs(
+                                                        booking.created_at_tz ||
+                                                          booking.created_at,
+                                                      )
+                                                        .tz("Asia/Jakarta")
+                                                        .format(
+                                                          "DD MMM YYYY, HH:mm",
+                                                        )
+                                                    : "-"}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="mt-4 flex gap-2">
+                                              {(booking.status === "pending" ||
+                                                booking.status ===
+                                                  "approved") && (
+                                                <Dialog
+                                                  open={
+                                                    cancelDialogOpen ===
+                                                    booking.id
+                                                  }
+                                                  onOpenChange={(open) => {
+                                                    if (open) {
+                                                      setCancelDialogOpen(
+                                                        booking.id,
+                                                      );
+                                                      setCancellationReason("");
+                                                    } else {
+                                                      setCancelDialogOpen(null);
+                                                      setCancellationReason("");
+                                                    }
                                                   }}
                                                 >
-                                                  Batal
-                                                </Button>
-                                                {cancellationReason.trim() && (
+                                                  <DialogTrigger asChild>
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                    >
+                                                      Batalkan Pemesanan
+                                                    </Button>
+                                                  </DialogTrigger>
+                                                  <DialogContent className="sm:max-w-[425px]">
+                                                    <DialogHeader>
+                                                      <DialogTitle>
+                                                        Batalkan Pemesanan
+                                                      </DialogTitle>
+                                                      <DialogDescription>
+                                                        Apakah Anda yakin ingin
+                                                        membatalkan pemesanan
+                                                        ini?
+                                                      </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="grid gap-4 py-4">
+                                                      <div className="grid gap-2">
+                                                        <label
+                                                          htmlFor="cancellation-reason"
+                                                          className="text-sm font-medium"
+                                                        >
+                                                          Keterangan Pembatalan
+                                                          *
+                                                        </label>
+                                                        <Textarea
+                                                          id="cancellation-reason"
+                                                          placeholder="Masukkan alasan pembatalan..."
+                                                          value={
+                                                            cancellationReason
+                                                          }
+                                                          onChange={(e) =>
+                                                            setCancellationReason(
+                                                              e.target.value,
+                                                            )
+                                                          }
+                                                          className="min-h-[100px]"
+                                                        />
+                                                      </div>
+                                                    </div>
+                                                    <DialogFooter>
+                                                      <Button
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                          setCancelDialogOpen(
+                                                            null,
+                                                          );
+                                                          setCancellationReason(
+                                                            "",
+                                                          );
+                                                        }}
+                                                      >
+                                                        Batal
+                                                      </Button>
+                                                      {cancellationReason.trim() && (
+                                                        <Button
+                                                          variant="destructive"
+                                                          onClick={() =>
+                                                            handleCancelBooking(
+                                                              booking.id,
+                                                            )
+                                                          }
+                                                        >
+                                                          Batalkan Pesanan
+                                                        </Button>
+                                                      )}
+                                                    </DialogFooter>
+                                                  </DialogContent>
+                                                </Dialog>
+                                              )}
+                                              {(booking.status === "pending" ||
+                                                booking.status ===
+                                                  "cancelled") && (
+                                                <>
+                                                  {canBookingBePaid(
+                                                    booking,
+                                                  ) && (
+                                                    <Button
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        navigate(
+                                                          `/payment/${booking.id}`,
+                                                        )
+                                                      }
+                                                    >
+                                                      Bayar
+                                                    </Button>
+                                                  )}
                                                   <Button
-                                                    variant="destructive"
-                                                    onClick={() =>
-                                                      handleCancelBooking(
-                                                        booking.id,
-                                                      )
-                                                    }
+                                                    size="sm"
+                                                    variant="outline"
                                                   >
-                                                    Batalkan Pesanan
+                                                    Hubungi Dukungan
                                                   </Button>
-                                                )}
-                                              </DialogFooter>
-                                            </DialogContent>
-                                          </Dialog>
-                                        )}
-                                        {(booking.status === "pending" ||
-                                          booking.status === "cancelled") && (
-                                          <>
-                                            {canBookingBePaid(booking) && (
-                                              <Button
-                                                size="sm"
-                                                onClick={() =>
-                                                  navigate(
-                                                    `/payment/${booking.id}`,
-                                                  )
-                                                }
-                                              >
-                                                Bayar
-                                              </Button>
-                                            )}
-                                            <Button size="sm" variant="outline">
-                                              Hubungi Dukungan
-                                            </Button>
-                                          </>
-                                        )}
+                                                </>
+                                              )}
 
-                                        {booking.status === "confirmed" && (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              className="bg-green-600 hover:bg-green-700 text-white"
-                                              onClick={async () => {
-                                                try {
-                                                  // Update status booking menjadi complete
-                                                  const { error } =
-                                                    await supabase
-                                                      .from("bookings")
-                                                      .update({
-                                                        status: "completed",
-                                                      })
-                                                      .eq("id", booking.id);
+                                              {booking.status ===
+                                                "confirmed" && (
+                                                <>
+                                                  <Button
+                                                    size="sm"
+                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                    onClick={async () => {
+                                                      try {
+                                                        const { error } =
+                                                          await supabase
+                                                            .from("bookings")
+                                                            .update({
+                                                              status:
+                                                                "completed",
+                                                            })
+                                                            .eq(
+                                                              "id",
+                                                              booking.id,
+                                                            );
 
-                                                  if (error) throw error;
+                                                        if (error) throw error;
 
-                                                  // Kalau kendaraan juga harus dilepas kembali:
-                                                  await supabase
-                                                    .from("vehicles")
-                                                    .update({
-                                                      status: "available",
-                                                    })
-                                                    .eq(
-                                                      "id",
-                                                      booking.vehicle_id,
-                                                    );
+                                                        await supabase
+                                                          .from("vehicles")
+                                                          .update({
+                                                            status: "available",
+                                                          })
+                                                          .eq(
+                                                            "id",
+                                                            booking.vehicle_id,
+                                                          );
 
-                                                  alert(
-                                                    "Booking berhasil diselesaikan (status complete).",
-                                                  );
-                                                  // Panggil ulang fetch bookings di sini supaya UI ter-refresh
-                                                } catch (err) {
-                                                  console.error(
-                                                    "Error updating booking:",
-                                                    err,
-                                                  );
-                                                  alert(
-                                                    "Gagal menyelesaikan booking.",
-                                                  );
-                                                }
-                                              }}
-                                            >
-                                              Selesai Sewa
-                                            </Button>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ),
-                            ])}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      <div className="text-center py-10">
-                        <p className="text-muted-foreground">
-                          Tidak ada pemesanan yang sesuai dengan filter Anda.
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={resetFilters}
-                          className="mt-4"
-                        >
-                          Reset Filter
-                        </Button>
-                      </div>
-                    )}
+                                                        alert(
+                                                          "Booking berhasil diselesaikan (status complete).",
+                                                        );
+                                                      } catch (err) {
+                                                        console.error(
+                                                          "Error updating booking:",
+                                                          err,
+                                                        );
+                                                        alert(
+                                                          "Gagal menyelesaikan booking.",
+                                                        );
+                                                      }
+                                                    }}
+                                                  >
+                                                    Selesai Sewa
+                                                  </Button>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
 
-                    {/* Mobile view */}
-                    <div className="md:hidden space-y-4">
-                      {filteredBookings.length > 0 ? (
-                        filteredBookings.map((booking) => (
-                          <Card key={booking.id} className="overflow-hidden">
-                            <CardHeader className="p-4 pb-2">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <CardTitle className="text-lg">
-                                    {booking.vehicle_name}
-                                  </CardTitle>
-                                  <CardDescription>
-                                    {dayjs(booking.booking_date)
-                                      .tz("Asia/Jakarta")
-                                      .format("DD MMM YYYY")}{" "}
-                                    at {booking.start_time}
-                                  </CardDescription>
-                                </div>
-                                <Badge
-                                  variant={getStatusBadgeVariant(
-                                    booking.status,
-                                  )}
-                                >
-                                  {booking.status.charAt(0).toUpperCase() +
-                                    booking.status.slice(1)}
-                                </Badge>
-                              </div>
-                            </CardHeader>
-                            <CardContent className="p-4 pt-0">
-                              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                                <div>
-                                  <p className="text-muted-foreground">
-                                    Durasi
-                                  </p>
-                                  <p>{booking.duration} day</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">
-                                    Total Harga
-                                  </p>
-                                  <p>
-                                    Rp {booking.total_amount.toLocaleString()}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">
-                                    Pembayaran
-                                  </p>
-                                  <p>
-                                    Rp{" "}
-                                    {(
-                                      booking.paid_amount || 0
-                                    ).toLocaleString()}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">
-                                    Sisa Pembayaran
-                                  </p>
-                                  <p>
-                                    Rp{" "}
-                                    {getRemainingPayment(
-                                      booking,
-                                    ).toLocaleString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mb-3">
-                                <p className="text-muted-foreground text-sm">
-                                  Status Pembayaran
-                                </p>
-                                <Badge
-                                  variant={getPaymentStatusBadgeVariant(
-                                    booking,
-                                  )}
-                                  className="mt-1"
-                                >
-                                  {getPaymentStatusDisplay(booking)}
-                                </Badge>
+                          {/* Pagination Controls */}
+                          <div className="flex items-center justify-between px-4 py-4 border-t">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-600">
+                                Baris per halaman:
+                              </span>
+                              <Select
+                                value={rowsPerPage.toString()}
+                                onValueChange={(value) => {
+                                  setRowsPerPage(Number(value));
+                                  setCurrentPage(1);
+                                }}
+                              >
+                                <SelectTrigger className="w-[70px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="5">5</SelectItem>
+                                  <SelectItem value="10">10</SelectItem>
+                                  <SelectItem value="20">20</SelectItem>
+                                  <SelectItem value="50">50</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-gray-600">
+                                {startIndex + 1}-
+                                {Math.min(endIndex, filteredBookings.length)}{" "}
+                                dari {filteredBookings.length}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(1)}
+                                disabled={currentPage === 1}
+                              >
+                                <ChevronsLeft className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(currentPage - 1)}
+                                disabled={currentPage === 1}
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </Button>
+
+                              {/* Page Numbers */}
+                              <div className="flex items-center gap-1">
+                                {Array.from(
+                                  { length: Math.min(5, totalPages) },
+                                  (_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) {
+                                      pageNum = i + 1;
+                                    } else if (currentPage <= 3) {
+                                      pageNum = i + 1;
+                                    } else if (currentPage >= totalPages - 2) {
+                                      pageNum = totalPages - 4 + i;
+                                    } else {
+                                      pageNum = currentPage - 2 + i;
+                                    }
+
+                                    return (
+                                      <Button
+                                        key={pageNum}
+                                        variant={
+                                          currentPage === pageNum
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        size="sm"
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className="w-8 h-8 p-0"
+                                      >
+                                        {pageNum}
+                                      </Button>
+                                    );
+                                  },
+                                )}
                               </div>
 
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="w-full justify-center"
-                                onClick={() => toggleBookingDetails(booking.id)}
+                                onClick={() => setCurrentPage(currentPage + 1)}
+                                disabled={currentPage === totalPages}
                               >
-                                <span className="flex items-center">
-                                  <ChevronDown className="h-4 w-4 mr-1" /> Lihat
-                                  Detail
-                                </span>
+                                <ChevronRight className="h-4 w-4" />
                               </Button>
-
-                              {expandedBooking === booking.id && (
-                                <div className="mt-3 pt-3 border-t">
-                                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                                    <div>
-                                      <p className="text-muted-foreground">
-                                        Tipe Kendaraan
-                                      </p>
-                                      <p>{booking.vehicle_type}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-sm text-muted-foreground">
-                                        Model Kendaraan
-                                      </p>
-                                      <p> {booking.vehicle_name}</p>
-                                      <p>{booking.license_plate}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-muted-foreground">
-                                        Metode Pembayaran
-                                      </p>
-                                      <p>{booking.payment_method}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-muted-foreground">
-                                        Waktu Selesai
-                                      </p>
-                                      <p>{displayEndTime(booking)}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-muted-foreground">
-                                        ID Pemesanan
-                                      </p>
-                                      <p>#{booking.id}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2 mt-3">
-                                    {(booking.status === "pending" ||
-                                      booking.status === "approved") && (
-                                      <Dialog
-                                        open={cancelDialogOpen === booking.id}
-                                        onOpenChange={(open) => {
-                                          if (open) {
-                                            setCancelDialogOpen(booking.id);
-                                            setCancellationReason("");
-                                          } else {
-                                            setCancelDialogOpen(null);
-                                            setCancellationReason("");
-                                          }
-                                        }}
-                                      >
-                                        <DialogTrigger asChild>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1"
-                                          >
-                                            Batalkan
-                                          </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[425px]">
-                                          <DialogHeader>
-                                            <DialogTitle>
-                                              Batalkan Pemesanan
-                                            </DialogTitle>
-                                            <DialogDescription>
-                                              Apakah Anda yakin ingin
-                                              membatalkan pemesanan ini?
-                                            </DialogDescription>
-                                          </DialogHeader>
-                                          <div className="grid gap-4 py-4">
-                                            <div className="grid gap-2">
-                                              <label
-                                                htmlFor="cancellation-reason-mobile"
-                                                className="text-sm font-medium"
-                                              >
-                                                Keterangan Pembatalan *
-                                              </label>
-                                              <Textarea
-                                                id="cancellation-reason-mobile"
-                                                placeholder="Masukkan alasan pembatalan..."
-                                                value={cancellationReason}
-                                                onChange={(e) =>
-                                                  setCancellationReason(
-                                                    e.target.value,
-                                                  )
-                                                }
-                                                className="min-h-[100px]"
-                                              />
-                                            </div>
-                                          </div>
-                                          <DialogFooter>
-                                            <Button
-                                              variant="outline"
-                                              onClick={() => {
-                                                setCancelDialogOpen(null);
-                                                setCancellationReason("");
-                                              }}
-                                            >
-                                              Batal
-                                            </Button>
-                                            {cancellationReason.trim() && (
-                                              <Button
-                                                variant="destructive"
-                                                onClick={() =>
-                                                  handleCancelBooking(
-                                                    booking.id,
-                                                  )
-                                                }
-                                              >
-                                                Batalkan Pesanan
-                                              </Button>
-                                            )}
-                                          </DialogFooter>
-                                        </DialogContent>
-                                      </Dialog>
-                                    )}
-                                    {booking.status !== "cancelled" && (
-                                      <>
-                                        {canBookingBePaid(booking) && (
-                                          <Button
-                                            size="sm"
-                                            className="flex-1"
-                                            onClick={() =>
-                                              navigate(`/payment/${booking.id}`)
-                                            }
-                                          >
-                                            Bayar
-                                          </Button>
-                                        )}
-                                        <Button
-                                          size="sm"
-                                          className="flex-1"
-                                          variant="outline"
-                                        >
-                                          Hubungi Dukungan2
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))
-                      ) : (
-                        <div className="text-center py-10">
-                          <p className="text-muted-foreground">
-                            Tidak ada pemesanan yang sesuai dengan filter Anda.
-                          </p>
-                          <Button
-                            variant="outline"
-                            onClick={resetFilters}
-                            className="mt-4"
-                          >
-                            Reset Filter
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(totalPages)}
+                                disabled={currentPage === totalPages}
+                              >
+                                <ChevronsRight className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="payments" className="mt-0">

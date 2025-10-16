@@ -15,6 +15,7 @@ import {
   RefreshCw,
   CheckCheck,
   Plane,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
@@ -31,6 +32,16 @@ interface AirportTransfer {
   price?: number;
 }
 
+interface OverdueMessage {
+  id: string;
+  message: string;
+  created_at: string;
+  is_read: boolean;
+  type: "overdue" | "payment" | "booking";
+  amount?: number;
+  days_overdue?: number;
+}
+
 interface DriverNotificationsProps {
   showAll?: boolean;
   historyMode?: boolean;
@@ -42,6 +53,8 @@ const DriverNotifications = ({
 }: DriverNotificationsProps) => {
   const [bookingCode, setBookingCode] = useState("");
   const [transfers, setTransfers] = useState<AirportTransfer[]>([]);
+  const [overdueMessages, setOverdueMessages] = useState<OverdueMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,12 +133,68 @@ const DriverNotifications = ({
           );
         }
       }
+
+      // ✅ Fetch overdue messages
+      await fetchOverdueMessages(currentDriverId);
     } catch (err: any) {
       console.error("Unexpected error:", err.message || err);
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchOverdueMessages = async (userId: string) => {
+    try {
+      // Fetch bookings with overdue payments
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("*, vehicles(*)")
+        .eq("user_id", userId)
+        .gt("remaining_payments", 0);
+
+      if (bookingsError) {
+        console.error("Error fetching overdue bookings:", bookingsError);
+        return;
+      }
+
+      const today = new Date();
+      const messages: OverdueMessage[] = [];
+
+      bookingsData?.forEach((booking) => {
+        if (booking.end_date) {
+          const endDate = new Date(booking.end_date);
+          const diffTime = today.getTime() - endDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays > 0) {
+            messages.push({
+              id: `overdue-${booking.id}`,
+              message: `Pembayaran untuk booking ${booking.code_booking} telah jatuh tempo ${diffDays} hari. Sisa pembayaran: Rp ${booking.remaining_payments?.toLocaleString()}`,
+              created_at: booking.end_date,
+              is_read: false,
+              type: "overdue",
+              amount: booking.remaining_payments,
+              days_overdue: diffDays,
+            });
+          }
+        }
+      });
+
+      setOverdueMessages(messages);
+      setUnreadCount(messages.filter((m) => !m.is_read).length);
+    } catch (error) {
+      console.error("Error fetching overdue messages:", error);
+    }
+  };
+
+  const markMessageAsRead = (messageId: string) => {
+    setOverdueMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, is_read: true } : msg
+      )
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   };
 
   useEffect(() => {
@@ -334,6 +403,11 @@ const DriverNotifications = ({
               <>
                 <Bell className="h-5 w-5 text-primary" />
                 Driver Notifications for Airport Transfers
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {unreadCount} Pesan Baru
+                  </Badge>
+                )}
               </>
             )}
           </div>
@@ -372,6 +446,62 @@ const DriverNotifications = ({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* Overdue Messages Section */}
+          {!isHistoryView && overdueMessages.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                <h3 className="text-lg font-semibold">Pesan Jatuh Tempo</h3>
+              </div>
+              <div className="space-y-2">
+                {overdueMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`p-4 rounded-lg border ${
+                      message.is_read
+                        ? "bg-gray-50 border-gray-200"
+                        : "bg-orange-50 border-orange-200"
+                    }`}
+                    onClick={() => markMessageAsRead(message.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant={message.is_read ? "outline" : "destructive"}
+                            className="text-xs"
+                          >
+                            {message.is_read ? "Dibaca" : "Belum Dibaca"}
+                          </Badge>
+                          {message.days_overdue && (
+                            <Badge variant="outline" className="text-xs">
+                              {message.days_overdue} Hari Terlambat
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {message.message}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(message.created_at).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      {!message.is_read && (
+                        <div className="ml-2">
+                          <div className="h-2 w-2 rounded-full bg-orange-500"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 text-sm bg-destructive/10 text-destructive rounded-md">
               {error}
