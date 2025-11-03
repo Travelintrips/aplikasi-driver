@@ -75,8 +75,11 @@ const Home = () => {
   const [currentVehicle, setCurrentVehicle] = useState(null);
   const [driverSaldo, setDriverSaldo] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
-  const [locationInterval, setLocationInterval] =
-    useState<NodeJS.Timeout | null>(null);
+  const [locationInterval, setLocationInterval] = useState<number | null>(null);
+  
+  // Use ref instead of state to prevent re-renders
+  const isInitialLoadRef = useRef(true);
+  
   const [topupForm, setTopupForm] = useState({
     amount: "",
     destination_account: "",
@@ -217,6 +220,29 @@ const Home = () => {
     };
 
     checkUser();
+
+    // ======================
+    // ✅ Listener perubahan Auth Supabase
+    // ======================
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("🔄 Auth state changed:", event);
+        
+        // Only refresh on initial sign in, not on subsequent state changes
+        if (event === 'SIGNED_IN' && isInitialLoadRef.current) {
+          isInitialLoadRef.current = false;
+          // Refresh data after login
+          await checkUser();
+        } else if (event === 'SIGNED_OUT') {
+          // Reset states on logout
+          setDriverSaldo(0);
+          setUser(null);
+          setIsOnline(false);
+          isInitialLoadRef.current = true;
+        }
+      },
+    );
+
     fetchPaymentMethods();
 
     const handleResize = () => {
@@ -241,6 +267,11 @@ const Home = () => {
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("modelSelected", handleModelSelected);
+      
+      // Cleanup auth listener
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
 
       // Clean up location tracking on component unmount
       if (locationInterval) {

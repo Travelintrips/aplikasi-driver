@@ -99,6 +99,9 @@ interface Payment {
   id: string;
   booking_id: string;
   vehicle_name: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  license_plate?: string;
   amount: number;
   paid_amount?: number;
   status: "paid" | "pending" | "overdue";
@@ -475,7 +478,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         let query = supabase
           .from("payments")
           .select(
-            "id, booking_id, total_amount, amount, paid_amount, status, created_at, due_date, transaction_id, payment_method, user_id",
+            "id, booking_id, make, model, license_plate, payment_date, total_amount, amount, paid_amount, status, created_at, due_date, transaction_id, payment_method, user_id",
           );
 
         // Filter by user_id if available
@@ -506,27 +509,54 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         const paymentsWithVehicles = await Promise.all(
           data.map(async (payment) => {
             let vehicleName = "Unknown Vehicle";
+            let vehicleMake = "";
+            let vehicleModel = "";
+            let licensePlate = "";
 
             if (payment.booking_id) {
               const { data: bookingData } = await supabase
                 .from("bookings")
-                .select("vehicle_name")
+                .select(
+                  "vehicle_name, make, model, license_plate, plate_number",
+                )
                 .eq("id", payment.booking_id)
                 .single();
 
-              if (bookingData?.vehicle_name) {
-                vehicleName = bookingData.vehicle_name;
+              if (bookingData) {
+                vehicleMake = bookingData.make || "";
+                vehicleModel =
+                  bookingData.model || bookingData.vehicle_name || "";
+                licensePlate =
+                  bookingData.license_plate || bookingData.plate_number || "";
+                vehicleName = vehicleModel
+                  ? `${vehicleMake} ${vehicleModel}`.trim()
+                  : bookingData.vehicle_name || "Unknown Vehicle";
               }
+            }
+
+            // Also check if payment has direct vehicle info
+            if (payment.make || payment.model) {
+              vehicleMake = payment.make || "";
+              vehicleModel = payment.model || "";
+              licensePlate = payment.license_plate || "";
+              vehicleName =
+                `${vehicleMake} ${vehicleModel}`.trim() || "Unknown Vehicle";
             }
 
             return {
               id: payment.id,
               booking_id: payment.booking_id || "",
               vehicle_name: vehicleName,
+              vehicle_make: vehicleMake,
+              vehicle_model: vehicleModel,
+              license_plate: licensePlate,
               amount: payment.total_amount || payment.amount || 0,
               paid_amount: payment.paid_amount,
               status: payment.status || "pending",
-              date: payment.created_at ? new Date(payment.created_at) : null,
+              date:
+                payment.payment_date || payment.created_at
+                  ? new Date(payment.payment_date || payment.created_at)
+                  : null,
               due_date: payment.due_date
                 ? new Date(payment.due_date)
                 : undefined,
@@ -695,7 +725,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                   const { data: paymentData } = await supabase
                     .from("payments")
                     .select(
-                      "id, status, payment_method, transaction_id, paid_amount",
+                      "id, status, license_plate, make,model,payment_date, payment_method, transaction_id, paid_amount",
                     )
                     .eq("id", payment.payment_id)
                     .single();
@@ -1160,29 +1190,29 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                 onValueChange={setMainTab}
                 className="w-full mt-4"
               >
-                <TabsList className="grid grid-cols-2 w-full md:w-[400px]">
+                <TabsList className="grid grid-cols-2 w-full md:w-[460px]">
                   <TabsTrigger value="bookings" className="flex items-center">
                     <Clock className="mr-2 h-4 w-4" />
                     Riwayat Pemesanan
                   </TabsTrigger>
                   <TabsTrigger value="payments" className="flex items-center">
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Riwayat Pembayaran
+                    Riwayat Pembayaran1
                   </TabsTrigger>
                 </TabsList>
 
                 <CardContent>
                   <TabsContent value="bookings" className="mt-0">
-                    <div className="flex flex-col md:flex-row gap-4 mb-4">
+                    <div className="flex flex-col md:flex-row gap-6 mb-6">
                       <Tabs
                         value={bookingTab}
                         onValueChange={setBookingTab}
                         className="w-full md:w-auto"
                       >
-                        <TabsList className="grid grid-cols-4 w-full md:w-[500px]">
+                        <TabsList className="grid grid-cols-4 w-full md:w-[480px]">
                           <TabsTrigger value="all">Semua</TabsTrigger>
                           <TabsTrigger value="pending">Tertunda</TabsTrigger>
-                          <TabsTrigger value="approved">Disetujui</TabsTrigger>
+                          <TabsTrigger value="completed">Disetujui</TabsTrigger>
                           <TabsTrigger value="cancelled">
                             Dibatalkan
                           </TabsTrigger>
@@ -1250,10 +1280,11 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     ) : (
                       <Card>
                         <CardContent className="p-0">
-                          <div className="overflow-x-auto">
+                          <div className="border rounded-lg overflow-hidden">
                             <table className="w-full">
                               <thead className="border-b">
                                 <tr>
+                                  <th className="text-left py-3 px-4">Aksi</th>
                                   <th className="text-left py-3 px-4">
                                     Kendaraan
                                   </th>
@@ -1275,64 +1306,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   <th className="text-left py-3 px-4">
                                     Status Bayar
                                   </th>
-                                  <th className="text-left py-3 px-4">Aksi</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {paginatedBookings.map((booking) => (
                                   <React.Fragment key={booking.id}>
                                     <tr className="border-b hover:bg-muted/20">
-                                      <td className="py-3 px-4 font-medium">
-                                        {booking.vehicle_name}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {dayjs(booking.booking_date)
-                                          .tz("Asia/Jakarta")
-                                          .format("DD MMM YYYY")}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {booking.start_time}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {booking.duration} Hari
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <Badge
-                                          variant={getStatusBadgeVariant(
-                                            booking.status,
-                                          )}
-                                        >
-                                          {booking.status
-                                            .charAt(0)
-                                            .toUpperCase() +
-                                            booking.status.slice(1)}
-                                        </Badge>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        Rp{" "}
-                                        {booking.total_amount.toLocaleString()}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        Rp{" "}
-                                        {(
-                                          booking.paid_amount || 0
-                                        ).toLocaleString()}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        Rp{" "}
-                                        {getRemainingPayment(
-                                          booking,
-                                        ).toLocaleString()}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <Badge
-                                          variant={getPaymentStatusBadgeVariant(
-                                            booking,
-                                          )}
-                                        >
-                                          {getPaymentStatusDisplay(booking)}
-                                        </Badge>
-                                      </td>
                                       <td className="py-3 px-4">
                                         <Button
                                           variant="ghost"
@@ -1348,11 +1327,60 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                             ) : (
                                               <ChevronDown className="h-4 w-4 mr-1" />
                                             )}
-                                            {expandedBooking === booking.id
-                                              ? "Tutup"
-                                              : "Lihat Detail"}
+                                            {expandedBooking === booking.id}
                                           </div>
                                         </Button>
+                                      </td>
+                                      <td className="py-3 px-4 text-sm font-weight: 300">
+                                        {booking.vehicle_name}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        {dayjs(booking.booking_date)
+                                          .tz("Asia/Jakarta")
+                                          .format("DD MMM YYYY")}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        {booking.start_time}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        {booking.duration} Hari
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        <Badge
+                                          variant={getStatusBadgeVariant(
+                                            booking.status,
+                                          )}
+                                        >
+                                          {booking.status
+                                            .charAt(0)
+                                            .toUpperCase() +
+                                            booking.status.slice(1)}
+                                        </Badge>
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        Rp{" "}
+                                        {booking.total_amount.toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        Rp{" "}
+                                        {(
+                                          booking.paid_amount || 0
+                                        ).toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        Rp{" "}
+                                        {getRemainingPayment(
+                                          booking,
+                                        ).toLocaleString()}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm">
+                                        <Badge
+                                          variant={getPaymentStatusBadgeVariant(
+                                            booking,
+                                          )}
+                                        >
+                                          {getPaymentStatusDisplay(booking)}
+                                        </Badge>
                                       </td>
                                     </tr>
 
@@ -1363,7 +1391,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           className="bg-muted/50"
                                         >
                                           <div className="p-4">
-                                            <h4 className="font-semibold mb-2">
+                                            <h4 className="font-semibold mb-2 text-sm">
                                               Detail Pemesanan
                                             </h4>
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1520,9 +1548,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                                   </DialogContent>
                                                 </Dialog>
                                               )}
-                                              {(booking.status === "pending" ||
-                                                booking.status ===
-                                                  "cancelled") && (
+                                              {booking.status === "pending" && (
                                                 <>
                                                   {canBookingBePaid(
                                                     booking,
@@ -1547,7 +1573,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                                 </>
                                               )}
 
-                                              {booking.status ===
+                                              {/*  {booking.status ===
                                                 "confirmed" && (
                                                 <>
                                                   <Button
@@ -1596,7 +1622,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                                     Selesai Sewa
                                                   </Button>
                                                 </>
-                                              )}
+                                              )} */}
                                             </div>
                                           </div>
                                         </td>
@@ -1722,7 +1748,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     >
                       <TabsList className="mb-4">
                         <TabsTrigger value="history">
-                          Riwayat Pembayaran
+                          Riwayat Pembayaran2
                         </TabsTrigger>
                         <TabsTrigger value="remaining">
                           Pembayaran Tersisa
@@ -1902,8 +1928,14 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   <div className="flex items-center">
                                     <div className="mr-4">
                                       <p className="font-medium">
-                                        {payment.vehicle_name}
+                                        {payment.vehicle_name ||
+                                          "Unknown Vehicle"}
                                       </p>
+                                      {payment.license_plate && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {payment.license_plate}
+                                        </p>
+                                      )}
                                       <p className="text-sm text-muted-foreground">
                                         {payment.booking_id}
                                       </p>
@@ -1953,7 +1985,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                   <div>
                                     <p className="text-sm font-medium">
-                                      Tanggal Pembayaran
+                                      Tanggal Pembayaran1
                                     </p>
                                     <p className="text-sm">
                                       {payment.date && isValidDate(payment.date)

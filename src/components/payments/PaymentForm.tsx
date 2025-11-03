@@ -384,10 +384,13 @@ const PaymentForm = () => {
             `Driver saldo updated: ${currentDriverSaldo} -> ${newDriverSaldo}`,
           );
 
+          const oldDriverSaldo = newDriverSaldo + paymentAmountToProcess;
+
           // Create histori_transaksi record
           const historiTransaksiData = {
             code_booking: booking.code_booking || booking.id,
             nominal: paymentAmountToProcess,
+            saldo_awal: oldDriverSaldo,
             saldo_akhir: newDriverSaldo,
             keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} - ${paymentMethod}`,
             user_id: booking.driver_id,

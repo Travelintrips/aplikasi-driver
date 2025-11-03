@@ -20,6 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Search,
   Filter,
@@ -31,6 +38,10 @@ import {
   Plus,
   Minus,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
@@ -64,40 +75,32 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [currentBalance, setCurrentBalance] = useState(0);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchTransactionHistory = async () => {
       try {
         setLoading(true);
-        setError(null);
 
         // Get current session first
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error("Session error:", sessionError);
-          setError("Authentication error. Please login again.");
-          setLoading(false);
-          return;
-        }
-
+        const { data: sessionData } = await supabase.auth.getSession();
         let currentUserId = userId;
 
-        // Prioritize session user ID over passed userId prop
-        if (sessionData?.session?.user?.id) {
+        if (!currentUserId && sessionData?.session?.user?.id) {
           currentUserId = sessionData.session.user.id;
         }
 
         if (!currentUserId) {
-          console.error("No user ID available for fetching transactions");
-          setError(
-            "No user authenticated. Please login to view transaction history.",
+          console.log(
+            "TransactionHistory - No user ID available for transaction history fetch",
           );
+          setTransactions([]);
           setLoading(false);
           return;
         }
@@ -107,224 +110,106 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
           currentUserId,
         );
 
-        // Fetch current balance from drivers table
-        const { data: driverData } = await supabase
-          .from("drivers")
-          .select("saldo")
-          .eq("id", currentUserId)
-          .maybeSingle();
-
-        if (driverData) {
-          setCurrentBalance(Number(driverData.saldo) || 0);
-        }
-
-        const allTransactions: Transaction[] = [];
-
-        // 1. Fetch topup transactions
-        const { data: topupData, error: topupError } = await supabase
-          .from("topup_requests")
-          .select("*")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false });
-
-        if (topupError) {
-          console.error("Error fetching topup data:", topupError);
-        } else if (topupData) {
-          console.log(
-            `Found ${topupData.length} topup transactions for user ${currentUserId}`,
-          );
-          topupData.forEach((topup) => {
-            allTransactions.push({
-              id: `topup-${topup.id}`,
-              type: "topup",
-              description: `Top-up Saldo - ${topup.method || "Bank Transfer"}`,
-              amount: topup.amount || 0,
-              date: new Date(topup.created_at || new Date()),
-              status:
-                topup.status === "verified"
-                  ? "completed"
-                  : topup.status === "rejected"
-                    ? "failed"
-                    : "pending",
-              reference_no: topup.reference_no || `topup-${topup.id}`,
-            });
-          });
-        }
-
-        // 2. Skip fetching payment transactions from bookings to avoid duplicates
-        // Payment transactions will be handled by histori_transaksi table only
-        console.log(
-          "Skipping bookings data to prevent duplicate payment transactions",
-        );
-
-        // 3. Fetch transaction history from histori_transaksi table
+        // Query histori_transaksi table
         const { data: historiData, error: historiError } = await supabase
           .from("histori_transaksi")
           .select("*")
-          .eq("user_id", currentUserId) // ✅ filter user
-          .not("user_id", "is", null) // ✅ pastikan user_id ada
+          .eq("user_id", currentUserId)
           .order("trans_date", { ascending: false });
 
+        console.log("TransactionHistory - Query result:", historiData);
+        console.log("TransactionHistory - Query error:", historiError);
+
         if (historiError) {
-          console.error("Error fetching histori_transaksi:", historiError);
-        } else if (historiData) {
-          console.log(
-            `Found ${historiData.length} histori_transaksi records for user ${currentUserId}`,
+          console.error(
+            "TransactionHistory - Error fetching transaction history:",
+            historiError,
           );
-
-          historiData.forEach((histori) => {
-            // ✅ Determine transaction type based on description and amount
-            let type: "topup" | "payment" = "payment";
-            let transactionAmount = Number(histori.nominal) || 0;
-
-            if (
-              histori.keterangan?.toLowerCase().includes("topup") ||
-              histori.keterangan?.toLowerCase().includes("top-up") ||
-              histori.keterangan
-                ?.toLowerCase()
-                .includes("verified from request")
-            ) {
-              type = "topup";
-              // For topup, amount should be positive
-              transactionAmount = Math.abs(transactionAmount);
-            } else if (
-              histori.keterangan?.toLowerCase().includes("pembayaran") ||
-              histori.keterangan?.toLowerCase().includes("sewa") ||
-              histori.keterangan?.toLowerCase().includes("payment")
-            ) {
-              type = "payment";
-              // For payment, amount should be negative (deduction from balance)
-              transactionAmount = -Math.abs(transactionAmount);
-            } else {
-              // Fallback: check the actual nominal value
-              if (
-                histori.nominal > 0 &&
-                !histori.keterangan?.toLowerCase().includes("pembayaran")
-              ) {
-                type = "topup";
-                transactionAmount = Math.abs(transactionAmount);
-              } else {
-                type = "payment";
-                transactionAmount = -Math.abs(transactionAmount);
-              }
-            }
-
-            // ✅ Calculate balance_before correctly
-            // ✅ Gunakan saldo_awal dan saldo_akhir langsung dari histori_transaksi
-            const balanceBefore = Number(histori.saldo_awal) || 0;
-            const balanceAfter = Number(histori.saldo_akhir) || balanceBefore;
-
-            // ✅ Konversi waktu ke WIB
-            const dateUTC = new Date(histori.trans_date);
-            const localDate = new Date(
-              dateUTC.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
-            );
-
-            allTransactions.push({
-              id: `histori-${histori.id}`,
-              type,
-              description: histori.keterangan || "Transaksi",
-              amount: transactionAmount,
-              balance_before: balanceBefore,
-              balance_after: balanceAfter,
-              date: localDate,
-              status:
-                histori.status?.toLowerCase() === "verified"
-                  ? "completed"
-                  : histori.status?.toLowerCase() === "rejected"
-                    ? "failed"
-                    : histori.status?.toLowerCase() || "pending",
-              reference_no: histori.code_booking || histori.id,
-            });
-          });
+          throw historiError;
         }
 
-        // ✅ Enhanced deduplication logic to prevent duplicate transactions
-        const uniqueTransactions = new Map<string, Transaction>();
+        if (!historiData || historiData.length === 0) {
+          console.log("TransactionHistory - No transactions found for user");
+          setTransactions([]);
+          setLoading(false);
+          return;
+        }
 
-        allTransactions.forEach((transaction) => {
-          // Create a more specific unique key based on transaction details
-          let uniqueKey = transaction.reference_no || transaction.id;
-
-          // For payment transactions, create a composite key to avoid duplicates
-          if (transaction.type === "payment" && transaction.booking_id) {
-            uniqueKey = `payment-${transaction.booking_id}-${Math.abs(transaction.amount)}`;
-          }
-
-          // For topup transactions, use the reference number or amount+date combination
-          if (transaction.type === "topup") {
-            const dateStr = transaction.date.toISOString().split("T")[0];
-            uniqueKey =
-              transaction.reference_no ||
-              `topup-${transaction.amount}-${dateStr}`;
-          }
-
-          // Only add if not already exists, or if this version has more complete data
-          if (
-            !uniqueTransactions.has(uniqueKey) ||
-            (transaction.balance_after !== undefined &&
-              uniqueTransactions.get(uniqueKey)?.balance_after === undefined)
-          ) {
-            uniqueTransactions.set(uniqueKey, transaction);
-          }
-        });
-
-        // ✅ Convert back to array and sort by date (oldest first)
-        const deduplicatedTransactions = Array.from(
-          uniqueTransactions.values(),
-        );
-        deduplicatedTransactions.sort(
-          (a, b) => a.date.getTime() - b.date.getTime(),
-        );
-
-        // ✅ Final verification - log summary of transactions by type
-        const transactionSummary = {
-          topup: deduplicatedTransactions.filter((t) => t.type === "topup")
-            .length,
-          payment: deduplicatedTransactions.filter((t) => t.type === "payment")
-            .length,
-          total: deduplicatedTransactions.length,
-        };
+        // Format the data
+        const formattedTransactions = historiData.map((transaction) => ({
+          id: transaction.id,
+          code_booking: transaction.code_booking || "-",
+          jenis_transaksi: transaction.jenis_transaksi || "Unknown",
+          keterangan: transaction.keterangan || "Unknown",
+          nominal: transaction.nominal || 0,
+          saldo_awal: transaction.saldo_awal || 0,
+          saldo_akhir: transaction.saldo_akhir || 0,
+          trans_date: transaction.trans_date
+            ? new Date(transaction.trans_date)
+            : new Date(),
+          status: transaction.status || "pending",
+          payment_method: transaction.payment_method || "-",
+          bank_name: transaction.bank_name || "-",
+          account_number: transaction.account_number || "-",
+          account_holder_received: transaction.account_holder_received || "-",
+        }));
 
         console.log(
-          `TransactionHistory - Final summary for user ${currentUserId}:`,
-          transactionSummary,
+          "TransactionHistory - Formatted transactions:",
+          formattedTransactions,
         );
-
-        setTransactions(deduplicatedTransactions);
-        console.log(
-          "TransactionHistory - Processed transactions:",
-          deduplicatedTransactions.length,
+        setTransactions(formattedTransactions);
+      } catch (error) {
+        console.error(
+          "TransactionHistory - Error fetching transaction history:",
+          error,
         );
-      } catch (err) {
-        console.error("TransactionHistory - Error fetching transactions:", err);
-        setError("Failed to fetch transactions. Please try again later.");
+        setError("Failed to fetch transaction history");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransactions();
+    fetchTransactionHistory();
   }, [userId]);
 
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch =
-      transaction.description
+      (transaction.jenis_transaksi || "")
         .toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
-      transaction.reference_no
-        ?.toLowerCase()
+      (transaction.code_booking || "")
+        .toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
-      transaction.booking_id?.toLowerCase().includes(searchQuery.toLowerCase());
+      (transaction.payment_method || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
     const matchesFilter =
       activeFilter === "all" ||
-      transaction.type === activeFilter ||
-      (activeFilter === "income" && transaction.amount > 0) ||
-      (activeFilter === "expense" && transaction.amount < 0);
+      (activeFilter === "income" && transaction.nominal > 0) ||
+      (activeFilter === "expense" && transaction.nominal < 0) ||
+      (activeFilter === "topup" &&
+        (transaction.jenis_transaksi || "").toLowerCase().includes("topup")) ||
+      (activeFilter === "payment" &&
+        (transaction.jenis_transaksi || "").toLowerCase().includes("payment"));
 
     return matchesSearch && matchesFilter;
   });
+
+  // Calculate pagination for bookings
+  const totalPages = Math.ceil(filteredTransactions.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(
+    startIndex,
+    endIndex,
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery]);
 
   const getTransactionIcon = (type: string, amount: number) => {
     if (type === "topup" || amount > 0) {
@@ -563,6 +448,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                       <TableRow>
                         <TableHead>Tanggal</TableHead>
                         <TableHead>Deskripsi</TableHead>
+                        <TableHead>Keterangan</TableHead>
                         <TableHead>Jenis</TableHead>
                         <TableHead className="text-right">Jumlah</TableHead>
                         <TableHead className="text-right">
@@ -576,10 +462,10 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTransactions.map((transaction) => (
+                      {paginatedTransactions.map((transaction) => (
                         <TableRow key={transaction.id}>
                           <TableCell className="font-medium">
-                            {transaction.date.toLocaleString("id-ID", {
+                            {transaction.trans_date.toLocaleString("id-ID", {
                               timeZone: "Asia/Jakarta",
                               day: "2-digit",
                               month: "2-digit",
@@ -591,61 +477,64 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getTransactionIcon(
-                                transaction.type,
-                                transaction.amount,
+                                transaction.jenis_transaksi,
+                                transaction.nominal,
                               )}
                               <div>
                                 <p className="font-medium">
-                                  {transaction.description}
+                                  {transaction.jenis_transaksi}
                                 </p>
-                                {transaction.vehicle_name && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {transaction.vehicle_name}
-                                  </p>
-                                )}
+                                {/*  <p className="text-sm text-muted-foreground">
+                                  {transaction.code_booking}
+                                </p>*/}
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                {transaction.keterangan}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline">
-                              {transaction.type === "topup"
+                              {transaction.jenis_transaksi
+                                ?.toLowerCase()
+                                .includes("topup")
                                 ? "Top-up"
-                                : transaction.type === "payment"
+                                : transaction.jenis_transaksi
+                                      ?.toLowerCase()
+                                      .includes("payment")
                                   ? "Pembayaran"
-                                  : transaction.type === "saldo_awal"
-                                    ? "Saldo Awal"
-                                    : transaction.type === "saldo_akhir"
-                                      ? "Saldo Akhir"
-                                      : "Lainnya"}
+                                  : "Pembayaran"}
                             </Badge>
                           </TableCell>
                           <TableCell
                             className={`text-right font-medium ${
-                              transaction.amount >= 0
+                              transaction.nominal >= 0
                                 ? "text-green-600"
                                 : "text-red-600"
                             }`}
                           >
-                            {transaction.amount >= 0 ? "+" : ""}Rp{" "}
-                            {transaction.amount.toLocaleString()}
+                            {transaction.nominal >= 0 ? "+" : ""}Rp{" "}
+                            {transaction.nominal.toLocaleString()}
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
-                            {transaction.balance_before !== undefined
-                              ? `Rp ${transaction.balance_before.toLocaleString()}`
+                            {transaction.saldo_awal !== undefined
+                              ? `Rp ${transaction.saldo_awal.toLocaleString()}`
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            {transaction.balance_after !== undefined
-                              ? `Rp ${transaction.balance_after.toLocaleString()}`
+                            {transaction.saldo_akhir !== undefined
+                              ? `Rp ${transaction.saldo_akhir.toLocaleString()}`
                               : "-"}
                           </TableCell>
                           <TableCell>
                             {getStatusBadge(transaction.status)}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {transaction.reference_no ||
-                              transaction.booking_id ||
-                              "-"}
+                            {transaction.code_booking || "-"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -655,6 +544,104 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
               )}
             </CardContent>
           </Card>
+          {/* Pagination Controls */}
+          {filteredTransactions.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  Baris per halaman:
+                </span>
+                <Select
+                  value={rowsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[70px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-gray-600">
+                  {startIndex + 1}-
+                  {Math.min(endIndex, filteredTransactions.length)} dari{" "}
+                  {filteredTransactions.length}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={
+                          currentPage === pageNum ? "default" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

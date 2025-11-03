@@ -124,6 +124,9 @@ const VehicleBooking = ({
   const [make, setmake] = useState(null);
   const [model, setmodel] = useState(null);
 
+  const [searchPlate, setSearchPlate] = useState("");
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+
   const formatDateForDB = (date: Date) => {
     // Format date as YYYY-MM-DD in local timezone to avoid timezone shifts
     // Use the date components directly instead of timezone conversion
@@ -319,11 +322,12 @@ const VehicleBooking = ({
 
   // Check for booking date gaps
   // ✅ Versi revisi — lebih akurat dan aman
-  /* const checkLastBooking = async (driverId: string, newStartDate: Date) => {
+  const checkLastBooking = async (driverId: string, newStartDate: Date) => {
     const { data: lastBooking, error } = await supabase
       .from("bookings")
-      .select("end_date")
+      .select("end_date, status")
       .eq("driver_id", driverId)
+      .in("status", ["completed", "pending", "confirmed", "onride"]) // ✅ filter status
       .order("end_date", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -337,7 +341,15 @@ const VehicleBooking = ({
       const lastEnd = new Date(lastBooking.end_date);
       const start = new Date(newStartDate);
 
-      // hitung selisih hari berdasarkan UTC agar konsisten
+      if (start <= lastEnd) {
+        toast({
+          variant: "destructive",
+          title: "❌ Tanggal tumpang tindih",
+          description: `Tanggal mulai baru (${format(start, "dd MMM yyyy")}) masih berada dalam periode booking sebelumnya (${format(lastEnd, "dd MMM yyyy")}).`,
+        });
+        return false;
+      }
+
       const gapDays = Math.round(
         (Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()) -
           Date.UTC(
@@ -348,7 +360,7 @@ const VehicleBooking = ({
           (1000 * 60 * 60 * 24),
       );
 
-      if (gapDays >= 0) {
+      if (gapDays >= 2) {
         toast({
           variant: "destructive",
           title: "⚠️ Tanggal tidak berurutan",
@@ -359,7 +371,7 @@ const VehicleBooking = ({
     }
 
     return true;
-  };*/
+  };
 
   const handleBookingSubmit = async () => {
     if (!selectedVehicle) return;
@@ -457,12 +469,12 @@ const VehicleBooking = ({
       }
 
       // Check for date gaps before proceeding
-      /*   if (pickupDate) {
+      if (pickupDate) {
         const isValidDate = await checkLastBooking(driverId, pickupDate);
         if (!isValidDate) {
           return; // Stop booking if there's a gap
         }
-      }*/
+      }
 
       const { data: existingDriverBookings, error: driverBookingError } =
         await supabase
@@ -477,6 +489,29 @@ const VehicleBooking = ({
           language === "id"
             ? "Terjadi kesalahan saat memeriksa booking driver."
             : "Error while checking driver bookings.",
+        );
+        return;
+      }
+
+      const { data: overlappingBookings, error: overlapError } = await supabase
+        .from("bookings")
+        .select("id, start_date, end_date, status")
+        .eq("driver_id", driverId)
+        .in("status", ["pending", "confirmed", "onride"])
+
+        .or(
+          `and(start_date.lte.${formatDateLocal(returnDate)}),and(end_date.gte.${formatDateLocal(pickupDate)})`,
+        );
+
+      if (overlapError) {
+        console.error("Error checking overlapping bookings:", overlapError);
+      }
+
+      if (overlappingBookings && overlappingBookings.length > 0) {
+        alert(
+          language === "id"
+            ? "Tanggal booking bertabrakan dengan jadwal driver sebelumnya."
+            : "Booking dates overlap with existing driver schedule.",
         );
         return;
       }
@@ -525,6 +560,13 @@ const VehicleBooking = ({
       // Generate booking code
       const bookingCode = generateBookingCode();
 
+      // Generate booking ID (UUID format)
+      const generateBookingId = () => {
+        return crypto.randomUUID();
+      };
+
+      const bookingId = generateBookingId();
+
       // Function to get current local time in Asia/Jakarta timezone
       const getCurrentLocalTime = () => {
         const now = new Date();
@@ -545,7 +587,9 @@ const VehicleBooking = ({
         start_time: pickupTime, // Use pickupTime instead of startTime
         end_time: returnTime, // Add end_time column with returnTime
         duration: rentalDuration, // Use duration instead of rental_days
+        rental_days: rentalDuration, // Add rental_days with same value as duration
         total_amount: calculateTotal(), // Use calculateTotal() instead of totalPrice
+        price: selectedVehicle.price, // Add vehicle price
         status: "pending",
         payment_method: paymentMethod,
         driver_id: driverId, // Add driver_id
@@ -555,6 +599,7 @@ const VehicleBooking = ({
         model: selectedVehicle?.model || "",
         license_plate: selectedVehicle?.license_plate || "",
         code_booking: bookingCode,
+        booking_id: bookingId, // Add auto-generated UUID booking_id
       };
 
       console.log("returnDate:", returnDate);
@@ -593,6 +638,8 @@ const VehicleBooking = ({
         "end_date",
         "user_id",
         "driver_id",
+        "price",
+        "booking_id",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
@@ -633,11 +680,40 @@ const VehicleBooking = ({
       setIsCancelling(true);
       setCancelError(null);
 
+      // Get current user information
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setCancelError(
+          language === "id"
+            ? "Gagal mendapatkan informasi pengguna."
+            : "Failed to get user information.",
+        );
+        return;
+      }
+
+      // Get driver name from drivers table
+      let driverName = "Unknown Driver";
+      const { data: driverData, error: driverError } = await supabase
+        .from("drivers")
+        .select("name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (driverData && !driverError) {
+        driverName = driverData.name || "Unknown Driver";
+      }
+
+      // Update booking with cancellation info
       const { error } = await supabase
         .from("bookings")
         .update({
           status: "cancelled",
           notes_driver: cancellationReason,
+          cancel_by_driver_name: driverName,
         })
         .eq("id", bookingId);
 
@@ -681,21 +757,50 @@ const VehicleBooking = ({
     }
   };
 
-  const [searchPlate, setSearchPlate] = useState("");
-
   {
     /*filter kendaraan berdasarkan plat nomor*/
   }
+  // Filter vehicles by license plate, make, or model
   useEffect(() => {
-    if (searchPlate.trim() === "") {
-      setFilteredVehicles(availableVehicles);
-    } else {
-      const filtered = availableVehicles.filter((v) =>
-        v.license_plate?.toLowerCase().includes(searchPlate.toLowerCase()),
-      );
-      setFilteredVehicles(filtered);
+    let filtered = availableVehicles;
+
+    if (searchPlate.trim() !== "") {
+      const normalize = (str: string) =>
+        str
+          .replace(/\s+/g, "")
+          .replace(/0/g, "o")
+          .replace(/[^a-z0-9]/gi, "")
+          .toLowerCase();
+
+      const search = normalize(searchPlate);
+
+      filtered = filtered.filter((v) => {
+        const plate = normalize(v.license_plate || "");
+        const make = normalize(v.make || "");
+        const model = normalize(v.model || "");
+        return (
+          plate.includes(search) ||
+          make.includes(search) ||
+          model.includes(search)
+        );
+      });
     }
-  }, [searchPlate, availableVehicles]);
+
+    // Filter by vehicle type (if selected)
+    if (typeFilters.length > 0) {
+      filtered = filtered.filter((v) =>
+        typeFilters.includes(v.type?.toLowerCase() || ""),
+      );
+    }
+
+    setFilteredVehicles(filtered);
+  }, [searchPlate, typeFilters, availableVehicles]);
+
+  const toggleTypeFilter = (type: string) => {
+    setTypeFilters((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 bg-gray-50">
@@ -756,7 +861,7 @@ const VehicleBooking = ({
       </div>
 
       {/* kolom mencari kendaraan*/}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col md:flex-row gap-4">
         <Input
           type="text"
           placeholder="Cari berdasarkan plat nomor..."
@@ -764,6 +869,52 @@ const VehicleBooking = ({
           onChange={(e) => setSearchPlate(e.target.value)}
           className="w-full max-w-md"
         />
+
+        {/* Type Filters */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700">Type:</span>
+          <Button
+            variant={typeFilters.includes("mpv") ? "default" : "outline"}
+            size="sm"
+            onClick={() => toggleTypeFilter("mpv")}
+            className="flex items-center gap-1"
+          >
+            <Car className="h-4 w-4" />
+            MPV
+          </Button>
+          <Button
+            variant={typeFilters.includes("electric") ? "default" : "outline"}
+            size="sm"
+            onClick={() => toggleTypeFilter("electric")}
+            className="flex items-center gap-1"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+            Electric
+          </Button>
+          {typeFilters.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTypeFilters([])}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
