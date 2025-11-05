@@ -362,7 +362,7 @@ const VehicleBooking = ({
           (1000 * 60 * 60 * 24),
       );
 
-      if (gapDays >= 0) {
+      if (gapDays >= 30) {
         toast({
           variant: "destructive",
           title: "⚠️ Tanggal tidak berurutan",
