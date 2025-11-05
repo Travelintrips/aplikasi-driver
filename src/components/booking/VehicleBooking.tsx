@@ -126,6 +126,7 @@ const VehicleBooking = ({
 
   const [searchPlate, setSearchPlate] = useState("");
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const today = new Date();
 
   const formatDateForDB = (date: Date) => {
     // Format date as YYYY-MM-DD in local timezone to avoid timezone shifts
@@ -341,10 +342,11 @@ const VehicleBooking = ({
       const lastEnd = new Date(lastBooking.end_date);
       const start = new Date(newStartDate);
 
-      if (start <= lastEnd) {
+      if (start < lastEnd && start >= today) {
+        // hanya blokir jika booking masa depan tumpang tindih
         toast({
           variant: "destructive",
-          title: "❌ Tanggal tumpang tindih",
+          title: "❌ Tanggal tumpang tindih masa depan",
           description: `Tanggal mulai baru (${format(start, "dd MMM yyyy")}) masih berada dalam periode booking sebelumnya (${format(lastEnd, "dd MMM yyyy")}).`,
         });
         return false;
@@ -360,7 +362,7 @@ const VehicleBooking = ({
           (1000 * 60 * 60 * 24),
       );
 
-      if (gapDays >= 2) {
+      if (gapDays >= 0) {
         toast({
           variant: "destructive",
           title: "⚠️ Tanggal tidak berurutan",

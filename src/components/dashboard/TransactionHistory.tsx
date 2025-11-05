@@ -212,12 +212,19 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
   }, [activeFilter, searchQuery]);
 
   const getTransactionIcon = (type: string, amount: number) => {
-    if (type === "topup" || amount > 0) {
+    // Top-up = pemasukan (icon Plus dengan warna hijau)
+    if (type === "topup") {
       return <Plus className="h-4 w-4 text-green-500" />;
-    } else if (type === "payment" || amount < 0) {
+    }
+    // Payment = pengeluaran (icon Minus dengan warna merah)
+    else if (type === "payment") {
       return <Minus className="h-4 w-4 text-red-500" />;
-    } else {
+    }
+    // Default
+    {
+      /* else {
       return <Wallet className="h-4 w-4 text-blue-500" />;
+    }*/
     }
   };
 
@@ -484,9 +491,6 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                                 <p className="font-medium">
                                   {transaction.jenis_transaksi}
                                 </p>
-                                {/*  <p className="text-sm text-muted-foreground">
-                                  {transaction.code_booking}
-                                </p>*/}
                               </div>
                             </div>
                           </TableCell>
@@ -512,13 +516,18 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                           </TableCell>
                           <TableCell
                             className={`text-right font-medium ${
-                              transaction.nominal >= 0
+                              transaction.jenis_transaksi
+                                ?.toLowerCase()
+                                .includes("topup")
                                 ? "text-green-600"
                                 : "text-red-600"
                             }`}
                           >
-                            {transaction.nominal >= 0 ? "+" : ""}Rp{" "}
-                            {transaction.nominal.toLocaleString()}
+                            {transaction.jenis_transaksi
+                              ?.toLowerCase()
+                              .includes("topup")
+                              ? `+ Rp ${transaction.nominal.toLocaleString()}`
+                              : `- Rp ${Math.abs(transaction.nominal).toLocaleString()}`}
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {transaction.saldo_awal !== undefined
