@@ -127,6 +127,7 @@ const VehicleBooking = ({
   const [searchPlate, setSearchPlate] = useState("");
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
   const today = new Date();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const formatDateForDB = (date: Date) => {
     // Format date as YYYY-MM-DD in local timezone to avoid timezone shifts
@@ -378,6 +379,9 @@ const VehicleBooking = ({
   const handleBookingSubmit = async () => {
     if (!selectedVehicle) return;
 
+    // Set processing state to true to disable button and show "Processing..."
+    setIsProcessing(true);
+
     try {
       const {
         data: { user },
@@ -602,6 +606,8 @@ const VehicleBooking = ({
         license_plate: selectedVehicle?.license_plate || "",
         code_booking: bookingCode,
         booking_id: bookingId, // Add auto-generated UUID booking_id
+        saldo_awal: userSaldo, // Add saldo_awal (balance before booking)
+        saldo_akhir: userSaldo - calculateTotal(), // Add saldo_akhir (balance after booking)
       };
 
       console.log("returnDate:", returnDate);
@@ -642,6 +648,8 @@ const VehicleBooking = ({
         "driver_id",
         "price",
         "booking_id",
+        "saldo_awal",
+        "saldo_akhir",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
@@ -664,6 +672,9 @@ const VehicleBooking = ({
     } catch (error) {
       console.error("Error creating booking:", error);
       alert("Gagal melakukan booking. Silakan coba lagi.");
+    } finally {
+      // Reset processing state after booking attempt
+      setIsProcessing(false);
     }
   };
 
@@ -1421,28 +1432,34 @@ const VehicleBooking = ({
                     insufficientFunds ||
                     !isTimeValid ||
                     !pickupDate ||
-                    !returnDate
+                    !returnDate ||
+                    isProcessing
                   }
                   className={
                     insufficientFunds ||
                     !isTimeValid ||
                     !pickupDate ||
-                    !returnDate
+                    !returnDate ||
+                    isProcessing
                       ? "opacity-50 cursor-not-allowed"
                       : ""
                   }
                 >
-                  {insufficientFunds
+                  {isProcessing
                     ? language === "id"
-                      ? "Saldo Tidak Cukup"
-                      : "Insufficient Balance"
-                    : !isTimeValid
+                      ? "Processing..."
+                      : "Processing..."
+                    : insufficientFunds
                       ? language === "id"
-                        ? "Jam Tidak Sesuai"
-                        : "Time Mismatch"
-                      : language === "id"
-                        ? "Pesan Sekarang"
-                        : "Book Now"}
+                        ? "Saldo Tidak Cukup"
+                        : "Insufficient Balance"
+                      : !isTimeValid
+                        ? language === "id"
+                          ? "Jam Tidak Sesuai"
+                          : "Time Mismatch"
+                        : language === "id"
+                          ? "Pesan Sekarang"
+                          : "Book Now"}
                 </Button>
               </DialogFooter>
             </>
