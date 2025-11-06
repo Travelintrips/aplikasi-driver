@@ -76,10 +76,10 @@ const Home = () => {
   const [driverSaldo, setDriverSaldo] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
   const [locationInterval, setLocationInterval] = useState<number | null>(null);
-  
+
   // Use ref instead of state to prevent re-renders
   const isInitialLoadRef = useRef(true);
-  
+
   const [topupForm, setTopupForm] = useState({
     amount: "",
     destination_account: "",
@@ -227,13 +227,13 @@ const Home = () => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("🔄 Auth state changed:", event);
-        
+
         // Only refresh on initial sign in, not on subsequent state changes
-        if (event === 'SIGNED_IN' && isInitialLoadRef.current) {
+        if (event === "SIGNED_IN" && isInitialLoadRef.current) {
           isInitialLoadRef.current = false;
           // Refresh data after login
           await checkUser();
-        } else if (event === 'SIGNED_OUT') {
+        } else if (event === "SIGNED_OUT") {
           // Reset states on logout
           setDriverSaldo(0);
           setUser(null);
@@ -267,7 +267,7 @@ const Home = () => {
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("modelSelected", handleModelSelected);
-      
+
       // Cleanup auth listener
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();

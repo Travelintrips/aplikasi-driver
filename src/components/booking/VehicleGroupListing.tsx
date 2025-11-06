@@ -24,62 +24,58 @@ const VehicleGroupListing = () => {
   const navigate = useNavigate();
   const [vehicleGroups, setVehicleGroups] = useState<VehicleGroup[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [vehicles, setVehicles] = useState<any[]>([]);
 
   // Fetch vehicle groups from Supabase
   useEffect(() => {
-    const fetchVehicleGroups = async () => {
-      try {
-        setLoading(true);
-        // Get vehicles grouped by model including plate numbers
-        const { data, error } = await supabase
-          .from("vehicles")
-          .select("make, model, image, plate_number, type")
-          .eq("status", "available");
+    const fetchVehicles = async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("status", "available"); // Only fetch vehicles with status 'available'
 
-        if (error) throw error;
+      if (error) {
+        console.error("Error fetching vehicles:", error);
+        return;
+      }
 
-        if (data) {
-          console.log("All available vehicles from Supabase:", data);
-          // Group vehicles by model and count them
-          const groupsByModel: Record<string, VehicleGroup> = {};
+      if (data) {
+        setVehicles(data);
+        // Group vehicles by model and count them
+        const groupsByModel: Record<string, VehicleGroup> = {};
 
-          data.forEach((vehicle) => {
-            if (!vehicle.model) return; // Skip if model is undefined
+        data.forEach((vehicle) => {
+          if (!vehicle.model) return; // Skip if model is undefined
 
-            if (!groupsByModel[vehicle.model]) {
-              groupsByModel[vehicle.model] = {
-                model: vehicle.model,
-                make: vehicle.make || "",
-                count: 0,
-                image: vehicle.image || "", // Use the first image for this model
-                plateNumbers: [],
-                type: vehicle.type || "",
-              };
-            }
+          if (!groupsByModel[vehicle.model]) {
+            groupsByModel[vehicle.model] = {
+              model: vehicle.model,
+              make: vehicle.make || "",
+              count: 0,
+              image: vehicle.image || "", // Use the first image for this model
+              plateNumbers: [],
+              type: vehicle.type || "",
+            };
+          }
 
-            groupsByModel[vehicle.model].count += 1;
+          groupsByModel[vehicle.model].count += 1;
 
-            // Add plate number to the array if it exists
-            if (vehicle.plate_number) {
-              groupsByModel[vehicle.model].plateNumbers.push(
-                vehicle.plate_number,
-              );
-            }
-          });
+          // Add plate number to the array if it exists
+          if (vehicle.plate_number) {
+            groupsByModel[vehicle.model].plateNumbers.push(
+              vehicle.plate_number,
+            );
+          }
+        });
 
-          // Convert the object to an array of vehicle groups
-          const groupsArray = Object.values(groupsByModel);
-          console.log("Grouped vehicles:", groupsArray);
-          setVehicleGroups(groupsArray);
-        }
-      } catch (error) {
-        console.error("Error fetching vehicle groups:", error);
-      } finally {
-        setLoading(false);
+        // Convert the object to an array of vehicle groups
+        const groupsArray = Object.values(groupsByModel);
+        console.log("Grouped vehicles:", groupsArray);
+        setVehicleGroups(groupsArray);
       }
     };
 
-    fetchVehicleGroups();
+    fetchVehicles();
   }, []);
 
   // Handle group selection
