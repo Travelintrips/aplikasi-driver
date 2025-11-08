@@ -229,27 +229,48 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
+    const statusLower = status.toLowerCase();
+    const statusText = status.charAt(0).toUpperCase() + status.slice(1).toUpperCase();
+    
+    switch (statusLower) {
+      case "confirmed":
         return (
           <Badge className="bg-green-100 text-green-800 border border-green-300">
-            Selesai
+            {statusText}
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 border border-blue-300">
+            {statusText}
+          </Badge>
+        );
+      case "ongoing":
+        return (
+          <Badge className="bg-purple-100 text-purple-800 border border-purple-300">
+            {statusText}
+          </Badge>
+        );
+      case "cancelled":
+        return (
+          <Badge className="bg-red-100 text-red-800 border border-red-300">
+            {statusText}
           </Badge>
         );
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300">
-            Menunggu
+            {statusText}
           </Badge>
         );
       case "failed":
         return (
           <Badge className="bg-red-100 text-red-800 border border-red-300">
-            Ditolak
+            DITOLAK
           </Badge>
         );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{statusText}</Badge>;
     }
   };
 

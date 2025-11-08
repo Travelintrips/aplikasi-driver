@@ -237,7 +237,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             remaining_payments
           `,
           )
-          .eq("user_id", currentUserId)
+          .or(`user_id.eq.${currentUserId},driver_id.eq.${currentUserId}`)
           .order("created_at", { ascending: false });
 
         console.log(
@@ -441,6 +441,29 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     };
 
     fetchBookings();
+
+    // Setup Realtime listener for bookings table
+    const bookingsChannel = supabase
+      .channel("bookings-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen to INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "bookings",
+        },
+        (payload) => {
+          console.log("Bookings table change detected:", payload);
+          // Refetch bookings when any change occurs
+          fetchBookings();
+        },
+      )
+      .subscribe();
+
+    // Cleanup: remove channel on unmount
+    return () => {
+      supabase.removeChannel(bookingsChannel);
+    };
   }, [userId]); // Add userId as dependency to refetch when it changes
 
   // Date range filter state
@@ -941,17 +964,61 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
 
   // Get status badge color
   const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "secondary";
+    switch (status.toLowerCase()) {
+      case "confirmed":
+        return "default"; // Green
+      case "ongoing":
+        return "secondary"; // Purple
+      case "cancelled":
+        return "destructive"; // Red
+      case "completed":
+        return "default"; // Blue
       case "pending":
-        return "default";
-      case "rejected":
-        return "destructive";
-      case "paid":
-        return "default";
+        return "outline"; // Yellow
       default:
-        return "default";
+        return "outline";
+    }
+  };
+
+  // Get status badge with custom colors
+  const getStatusBadge = (status: string) => {
+    const statusLower = status.toLowerCase();
+    const statusText =
+      status.charAt(0).toUpperCase() + status.slice(1).toUpperCase();
+
+    switch (statusLower) {
+      case "confirmed":
+        return (
+          <Badge className="bg-green-100 text-green-800 border border-green-300">
+            {statusText}
+          </Badge>
+        );
+      case "ongoing":
+        return (
+          <Badge className="bg-purple-100 text-purple-800 border border-purple-300">
+            {statusText}
+          </Badge>
+        );
+      case "cancelled":
+        return (
+          <Badge className="bg-red-100 text-red-800 border border-red-300">
+            {statusText}
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 border border-blue-300">
+            {statusText}
+          </Badge>
+        );
+      case "pending":
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300">
+            {statusText}
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{statusText}</Badge>;
     }
   };
 
@@ -1033,7 +1100,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   const getPaymentStatusBadgeVariant = (booking: Booking) => {
     const remainingAmount = getRemainingPayment(booking);
     if (remainingAmount === 0) {
-      return "default"; // Green for fully paid
+      return "default"; // Blue for fully paid
     }
     const paidAmount = booking.paid_amount || 0;
     if (paidAmount > 0) {
@@ -1041,6 +1108,31 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     }
     return "destructive"; // Red for unpaid
   };
+
+  // Get payment status badge with custom colors
+  /*const getPaymentStatusBadge = (booking: Booking) => {
+    const remainingAmount = getRemainingPayment(booking);
+
+    if (remainingAmount === 0) {
+      return (
+        <Badge className="bg-blue-100 text-blue-800 border border-blue-300 font-semibold">
+          Sudah Dibayar
+        </Badge>
+      );
+    } else if (remainingAmount > 0) {
+      return (
+        <Badge className="bg-blue-100 text-blue-800 border border-blue-300 font-semibold">
+          Dibayar Sebagian
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge className="bg-red-100 text-red-800 border border-red-300 font-semibold">
+          Belum Bayar
+        </Badge>
+      );
+    }
+  };*/
 
   // Reset all filters
   const resetFilters = () => {
@@ -1284,26 +1376,34 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                             <table className="w-full">
                               <thead className="border-b">
                                 <tr>
-                                  <th className="text-left py-3 px-4">Aksi</th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-0 px-4">
+                                    Aksi
+                                  </th>
+                                  <th className="text-left text-sm py-3 px-4">
                                     Kendaraan
                                   </th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-3 px-4">
                                     Tanggal
                                   </th>
-                                  <th className="text-left py-3 px-4">Waktu</th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-3 px-4">
+                                    Waktu
+                                  </th>
+                                  <th className="text-left text-sm py-3 px-4">
                                     Durasi
                                   </th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-3 px-4">
                                     Status
                                   </th>
-                                  <th className="text-left py-3 px-4">Total</th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-3 px-4">
+                                    Total
+                                  </th>
+                                  <th className="text-left text-sm py-3 px-4">
                                     Dibayar
                                   </th>
-                                  <th className="text-left py-3 px-4">Sisa</th>
-                                  <th className="text-left py-3 px-4">
+                                  <th className="text-left text-sm py-3 px-4">
+                                    Sisa
+                                  </th>
+                                  <th className="text-left text-sm py-3 px-4">
                                     Status Bayar
                                   </th>
                                 </tr>
@@ -1346,16 +1446,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                         {booking.duration} Hari
                                       </td>
                                       <td className="py-3 px-4 text-sm">
-                                        <Badge
-                                          variant={getStatusBadgeVariant(
-                                            booking.status,
-                                          )}
-                                        >
-                                          {booking.status
-                                            .charAt(0)
-                                            .toUpperCase() +
-                                            booking.status.slice(1)}
-                                        </Badge>
+                                        {getStatusBadge(booking.status)}
                                       </td>
                                       <td className="py-3 px-4 text-sm">
                                         Rp{" "}

@@ -235,7 +235,11 @@ const PaymentForm = () => {
 
       // Create payment data
       const paymentData = {
-        booking_id: booking.id,
+        booking_id: booking.booking_id,
+        code_booking: booking.code_booking,
+        license_plate: booking.license_plate,
+        make: booking.make,
+        model: booking.model,
         total_amount: paymentAmountToProcess,
         payment_method:
           paymentMethod === "transfer"
@@ -245,6 +249,7 @@ const PaymentForm = () => {
         notes: `Payment for ${vehicle.name} via ${paymentMethod}${paymentMethod === "transfer" ? ` (${selectedBank})` : ""}`,
         is_partial_payment: isPartialPayment,
         payment_date: new Date().toISOString().split("T")[0],
+        created_at: new Date().toISOString(),
         user_id: userId,
       };
 
@@ -641,7 +646,6 @@ const PaymentForm = () => {
         }
 
         const targetPhone = normalizePhone(driverPhone);
-
         const code_booking2 = booking.code_booking;
 
         // Gabungkan grup + driver
