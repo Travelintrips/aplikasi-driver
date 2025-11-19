@@ -608,6 +608,7 @@ const VehicleBooking = ({
         booking_id: bookingId, // Add auto-generated UUID booking_id
         saldo_awal: userSaldo, // Add saldo_awal (balance before booking)
         saldo_akhir: userSaldo - calculateTotal(), // Add saldo_akhir (balance after booking)
+        booking_type: "driver_book",
       };
 
       console.log("returnDate:", returnDate);
@@ -650,6 +651,7 @@ const VehicleBooking = ({
         "booking_id",
         "saldo_awal",
         "saldo_akhir",
+        "booking_type",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
