@@ -1289,7 +1289,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                   </TabsTrigger>
                   <TabsTrigger value="payments" className="flex items-center">
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Riwayat Pembayaran1
+                    Riwayat Pembayaran
                   </TabsTrigger>
                 </TabsList>
 
@@ -1839,7 +1839,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     >
                       <TabsList className="mb-4">
                         <TabsTrigger value="history">
-                          Riwayat Pembayaran2
+                          Riwayat Pembayaran
                         </TabsTrigger>
                         <TabsTrigger value="remaining">
                           Pembayaran Tersisa
@@ -2076,7 +2076,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                   <div>
                                     <p className="text-sm font-medium">
-                                      Tanggal Pembayaran1
+                                      Tanggal Pembayaran
                                     </p>
                                     <p className="text-sm">
                                       {payment.date && isValidDate(payment.date)

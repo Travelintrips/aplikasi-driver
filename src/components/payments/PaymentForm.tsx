@@ -397,7 +397,7 @@ const PaymentForm = () => {
             nominal: paymentAmountToProcess,
             saldo_awal: oldDriverSaldo,
             saldo_akhir: newDriverSaldo,
-            keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} - ${paymentMethod}`,
+            keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} ${vehicle.model} ${vehicle.license_plate} - ${paymentMethod}`,
             user_id: booking.driver_id,
             jenis_transaksi: "Sewa Kendaraan Driver",
             payment_method: paymentMethod || "saldo",

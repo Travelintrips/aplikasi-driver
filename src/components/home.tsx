@@ -76,6 +76,12 @@ const Home = () => {
   const [driverSaldo, setDriverSaldo] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
   const [locationInterval, setLocationInterval] = useState<number | null>(null);
+  const [quickTopupAmount, setQuickTopupAmount] = useState("");
+  const [isQuickTopupLoading, setIsQuickTopupLoading] = useState(false);
+  const [isQuickTopupBlocked, setIsQuickTopupBlocked] = useState(false);
+  const [countdownTime, setCountdownTime] = useState("");
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Use ref instead of state to prevent re-renders
   const isInitialLoadRef = useRef(true);
@@ -90,10 +96,6 @@ const Home = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [isTopupProcessing, setIsTopupProcessing] = useState(false);
   const [currentTopupId, setCurrentTopupId] = useState(null);
-  const [quickTopupAmount, setQuickTopupAmount] = useState("");
-  const [isQuickTopupLoading, setIsQuickTopupLoading] = useState(false);
-  const navigate = useNavigate();
-  const { toast } = useToast();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -261,6 +263,42 @@ const Home = () => {
       setActiveTab("booking");
     };
 
+    // Check Quick Topup time restriction
+    const checkQuickTopupTime = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      // Block between 23:30 (11:30 PM) and 01:00 (1:00 AM)
+      const isBlocked = (hours === 23 && minutes >= 30) || hours === 0;
+
+      setIsQuickTopupBlocked(isBlocked);
+
+      if (isBlocked) {
+        // Calculate countdown to 01:00
+        const tomorrow = new Date(now);
+        if (hours === 23) {
+          tomorrow.setDate(tomorrow.getDate() + 1);
+        }
+        tomorrow.setHours(1, 0, 0, 0);
+
+        const diff = tomorrow.getTime() - now.getTime();
+        const hoursLeft = Math.floor(diff / (1000 * 60 * 60));
+        const minutesLeft = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const secondsLeft = Math.floor((diff % (1000 * 60)) / 1000);
+
+        setCountdownTime(
+          `${hoursLeft.toString().padStart(2, "0")}:${minutesLeft.toString().padStart(2, "0")}:${secondsLeft.toString().padStart(2, "0")}`,
+        );
+      }
+    };
+
+    // Check immediately
+    checkQuickTopupTime();
+
+    // Check every second
+    const timeCheckInterval = setInterval(checkQuickTopupTime, 1000);
+
     window.addEventListener("resize", handleResize);
     window.addEventListener("modelSelected", handleModelSelected);
 
@@ -277,6 +315,9 @@ const Home = () => {
       if (locationInterval) {
         clearInterval(locationInterval);
       }
+
+      // Clean up time check interval
+      clearInterval(timeCheckInterval);
     };
   }, []);
 
@@ -659,6 +700,18 @@ const Home = () => {
 
   const handleQuickTopup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if Quick Topup is blocked
+    if (isQuickTopupBlocked) {
+      toast({
+        title: "Transaksi Tidak Tersedia",
+        description: `Quick Topup tidak tersedia pada jam 23:30 - 01:00. Silakan coba lagi setelah jam 01:00.`,
+        duration: 5000,
+        className: "bg-yellow-50 border-yellow-200",
+      });
+      return;
+    }
+
     setIsQuickTopupLoading(true);
 
     try {
@@ -672,8 +725,164 @@ const Home = () => {
         return;
       }
 
+      // Get current user session
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      if (!sessionData?.session?.user?.id) {
+        throw new Error("User not authenticated");
+      }
+
       // Generate order ID
       const orderId = `TOP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Determine user role for request_by_role field
+      let userRole = "user"; // Default fallback
+
+      // Try to get role from drivers table first
+      const { data: driverRole, error: driverRoleError } = await supabase
+        .from("drivers")
+        .select("role_name")
+        .eq("id", sessionData.session.user.id)
+        .maybeSingle();
+
+      if (driverRole && driverRole.role_name) {
+        userRole = driverRole.role_name;
+      } else {
+        // Fallback to users table
+        const { data: userRoleData, error: userRoleError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", sessionData.session.user.id)
+          .maybeSingle();
+
+        if (userRoleData && userRoleData.role) {
+          userRole = userRoleData.role;
+        }
+      }
+
+      console.log(
+        "🚀 Quick Topup - Inserting topup request for user:",
+        sessionData.session.user.id,
+        "with role:",
+        userRole,
+      );
+
+      // Insert ke topup_requests dengan status "verified" langsung
+      const { data: topupRequest, error: topupError } = await supabase
+        .from("topup_requests")
+        .insert({
+          user_id: sessionData.session.user.id,
+          amount: parseFloat(quickTopupAmount),
+          payment_method: "online_payment",
+          bank_name: "PayLab Gateway",
+          destination_account: null,
+          proof_url: null,
+          reference_no: orderId,
+          status: "verified", // ← LANGSUNG VERIFIED
+          created_at: new Date().toISOString(),
+          verified_at: new Date().toISOString(), // ← SAMA dengan created_at
+          request_by_role: userRole,
+          name: user?.name || "Driver",
+          verified_by: null, // tidak ada admin
+          account_holder_received: null, // tidak relevan
+        })
+        .select()
+        .single();
+
+      if (topupError) {
+        console.error("Error inserting topup request:", topupError);
+        toast({
+          title: "Error",
+          description: "Gagal menyimpan data top-up. Silakan coba lagi.",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
+      }
+
+      console.log("✅ Quick Topup - Topup request inserted:", topupRequest);
+
+      // Insert ke histori_transaksi
+      try {
+        // Ambil saldo user sekarang
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("saldo")
+          .eq("id", sessionData.session.user.id)
+          .single();
+
+        if (userError) {
+          console.error("❌ Error fetching user saldo:", userError);
+        }
+
+        const currentSaldo = Number(userData?.saldo) || 0;
+
+        console.log("[QUICK TOPUP HISTORI] Inserting record:", {
+          user_id: sessionData.session.user.id,
+          code_booking: orderId,
+          nominal: parseFloat(quickTopupAmount),
+          saldo_awal: currentSaldo,
+          status: "verified",
+          role: userRole,
+        });
+
+        const { data: insertData, error: historiError } = await supabase
+          .from("histori_transaksi")
+          .insert({
+            user_id: sessionData.session.user.id,
+            code_booking: orderId,
+            nominal: parseFloat(quickTopupAmount),
+            jenis_transaksi: "Quick Topup Online",
+            saldo_awal: currentSaldo,
+            saldo_akhir: currentSaldo + parseFloat(quickTopupAmount),
+            status: "verified",
+            trans_date: new Date().toISOString(),
+            payment_method: "online_payment",
+            bank_name: "PayLab Gateway",
+            account_number: null,
+            account_holder_received: null,
+          })
+          .select();
+
+        if (historiError) {
+          console.error(
+            "❌ Error inserting into histori_transaksi:",
+            JSON.stringify(historiError, null, 2),
+          );
+        } else {
+          console.log(
+            "✅ Inserted Quick Topup to histori_transaksi:",
+            insertData,
+          );
+        }
+      } catch (historiError) {
+        console.error("⚠️ Error in histori_transaksi insertion:", historiError);
+      }
+
+      // Update saldo driver
+      const { data: currentDriver } = await supabase
+        .from("drivers")
+        .select("saldo")
+        .eq("id", sessionData.session.user.id)
+        .single();
+
+      const newSaldo =
+        (Number(currentDriver?.saldo) || 0) + parseFloat(quickTopupAmount);
+
+      const { error: updateError } = await supabase
+        .from("drivers")
+        .update({ saldo: newSaldo })
+        .eq("id", sessionData.session.user.id);
+
+      if (updateError) {
+        console.error("Error updating driver saldo:", updateError);
+      } else {
+        console.log("✅ Driver saldo updated to:", newSaldo);
+        // Update local state
+        setDriverSaldo(newSaldo);
+      }
 
       // Construct API URL using the PHP endpoint with driverId
       const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || "Driver")}&phone=${encodeURIComponent(user?.phone || "08123456789")}&order=${orderId}&driverId=${user?.id || ""}`;
@@ -706,6 +915,11 @@ const Home = () => {
 
       // Reset form
       setQuickTopupAmount("");
+
+      // Refresh payment stats
+      if (user?.id) {
+        fetchPaymentStats(user.id);
+      }
     } catch (error) {
       console.error("Error processing quick topup:", error);
       toast({
@@ -1626,6 +1840,32 @@ const Home = () => {
                           </p>
                         </div>
 
+                        {/* Time Restriction Warning */}
+                        {isQuickTopupBlocked && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                            <div className="flex items-start">
+                              <div className="flex-shrink-0">
+                                <Clock className="h-5 w-5 text-yellow-600" />
+                              </div>
+                              <div className="ml-3 flex-1">
+                                <h3 className="text-sm font-medium text-yellow-800">
+                                  Transaksi Tidak Tersedia
+                                </h3>
+                                <p className="mt-1 text-sm text-yellow-700">
+                                  Quick Topup tidak dapat dilakukan pada jam
+                                  23:30 - 01:00.
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-yellow-800">
+                                  Transaksi dapat dilakukan kembali dalam:
+                                </p>
+                                <p className="mt-1 text-2xl font-bold text-yellow-900">
+                                  {countdownTime}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Quick Topup Form */}
                         <form onSubmit={handleQuickTopup} className="space-y-6">
                           {/* Amount Field */}
@@ -1642,7 +1882,9 @@ const Home = () => {
                               required
                               min="10000"
                               step="1000"
-                              disabled={isQuickTopupLoading}
+                              disabled={
+                                isQuickTopupLoading || isQuickTopupBlocked
+                              }
                             />
                             <p className="text-xs text-muted-foreground">
                               Minimum top-up Rp 10.000
@@ -1653,12 +1895,21 @@ const Home = () => {
                           <Button
                             type="submit"
                             className="w-full"
-                            disabled={isQuickTopupLoading || !quickTopupAmount}
+                            disabled={
+                              isQuickTopupLoading ||
+                              !quickTopupAmount ||
+                              isQuickTopupBlocked
+                            }
                           >
                             {isQuickTopupLoading ? (
                               <>
                                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
                                 Memproses...
+                              </>
+                            ) : isQuickTopupBlocked ? (
+                              <>
+                                <Clock className="mr-2 h-4 w-4" />
+                                Tidak Tersedia (23:30 - 01:00)
                               </>
                             ) : (
                               "Bayar Sekarang"

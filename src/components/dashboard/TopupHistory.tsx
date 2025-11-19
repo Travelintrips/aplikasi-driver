@@ -449,7 +449,9 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
                           <p className="text-sm text-muted-foreground">
                             {request.payment_method === "bank_transfer"
                               ? "Transfer Bank"
-                              : request.payment_method}
+                              : request.payment_method === "online_payment"
+                                ? "Payment Paylabs"
+                                : request.payment_method}
                           </p>
                         </div>
                       </div>
@@ -517,10 +519,12 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
                                 Bank Penerima
                               </p>
                               <p className="text-sm text-gray-600">
-                                {getBankAccountInfo(
-                                  request.destination_account,
-                                  request.account_holder_received,
-                                ) || "Belum ada bank"}
+                                {request.payment_method === "online_payment"
+                                  ? "Payment Gateway"
+                                  : getBankAccountInfo(
+                                      request.destination_account,
+                                      request.account_holder_received,
+                                    ) || "Belum ada bank"}
                               </p>
                             </div>
                           </div>

@@ -74,7 +74,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
-  const [currentBalance, setCurrentBalance] = useState(0);
+  const [currentSaldo, setCurrentSaldo] = useState(0);
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -142,6 +142,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
           jenis_transaksi: transaction.jenis_transaksi || "Unknown",
           keterangan: transaction.keterangan || "Unknown",
           nominal: transaction.nominal || 0,
+          amount: transaction.nominal || 0, // Add amount field for calculations
           saldo_awal: transaction.saldo_awal || 0,
           saldo_akhir: transaction.saldo_akhir || 0,
           trans_date: transaction.trans_date
@@ -159,6 +160,23 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
           formattedTransactions,
         );
         setTransactions(formattedTransactions);
+
+        // Fetch current driver saldo
+        const { data: driverData, error: driverError } = await supabase
+          .from("drivers")
+          .select("saldo")
+          .eq("id", currentUserId)
+          .single();
+
+        if (driverError) {
+          console.error(
+            "TransactionHistory - Error fetching driver saldo:",
+            driverError,
+          );
+        } else if (driverData) {
+          console.log("TransactionHistory - Driver saldo:", driverData.saldo);
+          setCurrentSaldo(Number(driverData.saldo) || 0);
+        }
       } catch (error) {
         console.error(
           "TransactionHistory - Error fetching transaction history:",
@@ -172,6 +190,21 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
 
     fetchTransactionHistory();
   }, [userId]);
+
+  const incomeTypes = [
+    "Topup Bank Transfer Driver",
+    "Topup Manual Driver",
+    "Topup Driver Request",
+    "Topup Agent Verified",
+  ];
+
+  const expenseTypes = [
+    "Sewa Kendaraan Driver",
+    "Pembayaran Kendaraan",
+    "Driver Fine",
+    "Bayar Denda",
+    "Pembayaran Sewa Kendaraan",
+  ];
 
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch =
@@ -187,8 +220,10 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
 
     const matchesFilter =
       activeFilter === "all" ||
-      (activeFilter === "income" && transaction.nominal > 0) ||
-      (activeFilter === "expense" && transaction.nominal < 0) ||
+      (activeFilter === "income" &&
+        incomeTypes.includes(transaction.jenis_transaksi)) ||
+      (activeFilter === "expense" &&
+        expenseTypes.includes(transaction.jenis_transaksi)) ||
       (activeFilter === "topup" &&
         (transaction.jenis_transaksi || "").toLowerCase().includes("topup")) ||
       (activeFilter === "payment" &&
@@ -230,8 +265,9 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
-    const statusText = status.charAt(0).toUpperCase() + status.slice(1).toUpperCase();
-    
+    const statusText =
+      status.charAt(0).toUpperCase() + status.slice(1).toUpperCase();
+
     switch (statusLower) {
       case "confirmed":
         return (
@@ -275,12 +311,17 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
   };
 
   const totalIncome = transactions
-    .filter((t) => t.amount > 0 && t.status === "completed")
+    .filter((t) => t.amount > 0 && t.status?.toLowerCase() === "completed")
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalExpense = transactions
-    .filter((t) => t.amount < 0 && t.status === "completed")
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    .filter(
+      (t) =>
+        t.jenis_transaksi === "Sewa Kendaraan Driver" &&
+        t.saldo_akhir < t.saldo_awal && // ini yang benar jika nominal positif
+        t.status?.toLowerCase() === "completed",
+    )
+    .reduce((sum, t) => sum + Math.abs(t.nominal), 0);
 
   return (
     <div className="bg-background p-6 rounded-lg w-full max-w-7xl mx-auto">
@@ -336,7 +377,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                 <div className="flex items-center">
                   <Wallet className="mr-2 h-4 w-4 text-primary" />
                   <span className="text-2xl font-bold">
-                    Rp {currentBalance.toLocaleString()}
+                    Rp {currentSaldo.toLocaleString()}
                   </span>
                 </div>
               </CardContent>
@@ -506,7 +547,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                             <div className="flex items-center gap-2">
                               {getTransactionIcon(
                                 transaction.jenis_transaksi,
-                                transaction.nominal,
+                                transaction.amount,
                               )}
                               <div>
                                 <p className="font-medium">
@@ -547,8 +588,8 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                             {transaction.jenis_transaksi
                               ?.toLowerCase()
                               .includes("topup")
-                              ? `+ Rp ${transaction.nominal.toLocaleString()}`
-                              : `- Rp ${Math.abs(transaction.nominal).toLocaleString()}`}
+                              ? `+ Rp ${transaction.amount.toLocaleString()}`
+                              : `- Rp ${Math.abs(transaction.amount).toLocaleString()}`}
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {transaction.saldo_awal !== undefined
